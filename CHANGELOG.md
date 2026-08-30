@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/a-huy/wowbak/compare/v0.2.1...v0.3.0) (2026-08-30)
+
+
+### Features
+
+* delete individual backups ([2326565](https://github.com/a-huy/wowbak/commit/2326565ae45b13ab1cfa1a472a3720f5fb0402e3))
+
 ## [0.2.1](https://github.com/a-huy/wowbak/compare/v0.2.0...v0.2.1) (2026-08-30)
 
 
