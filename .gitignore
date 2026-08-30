@@ -3,5 +3,6 @@
 dist/
 *.token
 wowbak.conf
+wowbak-installed-*.json
 
 .DS_Store

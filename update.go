@@ -22,11 +22,12 @@ type checkResult struct {
 	Flavor    string // release flavor the asset was matched on
 	Release   ghRelease
 	Outdated  bool
+	Installed string // release tag we last installed, when it differs from the .toc
 	Reason    string // why it could not be checked, when it could not be
 	Untracked bool   // no source configured
 }
 
-func checkOne(gh *ghClient, p Package, src source) checkResult {
+func checkOne(gh *ghClient, p Package, src source, installedTag string) checkResult {
 	res := checkResult{Pkg: p, Source: src}
 
 	rels, err := gh.releases(src.Repo)
@@ -53,7 +54,17 @@ func checkOne(gh *ghClient, p Package, src source) checkResult {
 		}
 		res.Release, res.Asset, res.Flavor = rel, asset, flavor
 		res.Latest = strings.TrimPrefix(rel.TagName, "v")
+
+		// Outdated only if the release is newer than both what the addon says it
+		// is and what we last installed. The two disagree whenever an author
+		// tags a release without bumping the .toc.
 		res.Outdated = newerThan(res.Latest, p.Version)
+		if res.Outdated && installedTag != "" {
+			if !newerThan(res.Latest, installedTag) {
+				res.Outdated = false
+				res.Installed = installedTag
+			}
+		}
 		return res
 	}
 	res.Reason = "no release with a build for this game version"
@@ -72,6 +83,7 @@ func runCheck(cfg Config, install string, flavors []string, only map[string]bool
 	progress func(string)) ([]flavorCheck, *ghClient) {
 	tok, _ := cfg.githubToken()
 	gh := newGHClient(tok)
+	state := loadInstalledState(cfg)
 	var out []flavorCheck
 	for _, flavor := range flavors {
 		pkgs := scanPackages(install, flavor)
@@ -85,7 +97,8 @@ func runCheck(cfg Config, install string, flavors []string, only map[string]bool
 			if progress != nil {
 				progress(g.pkg.Name)
 			}
-			results = append(results, checkOne(gh, g.pkg, g.src))
+			results = append(results, checkOne(gh, g.pkg, g.src,
+				state.Installed[strings.ToLower(g.pkg.Name)]))
 		}
 		for _, p := range untracked {
 			if only != nil && !only[strings.ToLower(p.Name)] {
@@ -418,6 +431,10 @@ func applyUpdate(gh *ghClient, cfg Config, install, flavor string, r checkResult
 		os.RemoveAll(m[1])
 	}
 
+	// Remember the tag, not just the files: the addon's own version may not
+	// match it, and without this the next check would offer the same update.
+	recordInstalled(cfg, r.Pkg.Name, r.Latest)
+
 	fmt.Printf("    %d folder(s) replaced\n", len(folders))
 	fmt.Printf("    undo: wowbak restore %s --force --replace-addons\n",
 		filepath.Join(filepath.Base(filepath.Dir(snap)), filepath.Base(snap)))
@@ -544,4 +561,49 @@ func snapshotFolders(install, flavor string, folders []string, dest string) erro
 		return err
 	}
 	return zw.Close()
+}
+
+// --------------------------------------------------- what we actually installed
+
+// installedState records the release tag last installed for each package.
+//
+// An addon's .toc version is written by its author and does not always match the
+// release tag: SimulationCraft's 12.1.0-04 release ships a .toc still declaring
+// 12.1.0-03. Comparing the tag against the .toc alone would report that addon as
+// outdated forever and re-download it on every run. Remembering the tag we
+// installed makes the second check agree with the first.
+type installedState struct {
+	Installed map[string]string `json:"installed"` // lowercased package -> release tag
+}
+
+func installedStatePath(cfg Config) string {
+	dir := filepath.Dir(cfg.Path)
+	if cfg.Path == "" {
+		if d := exeDir(); d != "" {
+			dir = d
+		} else {
+			dir = "."
+		}
+	}
+	return filepath.Join(dir, fmt.Sprintf("wowbak-installed-%s.json", machineID()))
+}
+
+func loadInstalledState(cfg Config) installedState {
+	st := installedState{Installed: map[string]string{}}
+	data, err := os.ReadFile(installedStatePath(cfg))
+	if err != nil {
+		return st
+	}
+	var got installedState
+	if json.Unmarshal(data, &got) == nil && got.Installed != nil {
+		st.Installed = got.Installed
+	}
+	return st
+}
+
+func recordInstalled(cfg Config, pkg, tag string) {
+	st := loadInstalledState(cfg)
+	st.Installed[strings.ToLower(pkg)] = tag
+	data, _ := json.MarshalIndent(st, "", "  ")
+	os.WriteFile(installedStatePath(cfg), append(data, '\n'), 0o644)
 }

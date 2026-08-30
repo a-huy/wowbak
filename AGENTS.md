@@ -100,6 +100,13 @@ their sub-folders independently: Narcissus 1.8.6 installs Narcissus_BagFilter
 forever and re-downloads 87MB every run. `groupBySource` merges them; the version
 that counts comes from the folder the package is named after.
 
+**An addon's .toc version does not always match its release tag.**
+SimulationCraft's 12.1.0-04 release ships a .toc still declaring 12.1.0-03, so
+comparing the tag against the .toc alone reports it outdated forever and
+re-downloads it every run. The tag installed is recorded in
+`wowbak-installed-<machine>.json`, and a package counts as outdated only when the
+release is newer than both that and the .toc.
+
 **Do not cap or time-limit downloads.** Release archives run to 90MB. A
 `LimitReader` truncated one and produced "not a valid zip file"; a 30-second
 client timeout then killed it at 80%. The JSON helper caps at 32MB, which is fine
