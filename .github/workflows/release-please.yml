@@ -11,12 +11,24 @@ permissions:
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    outputs:
+      released: ${{ steps.rp.outputs.release_created }}
+      tag: ${{ steps.rp.outputs.tag_name }}
     steps:
-      # Works out the next version from the commit messages since the last
-      # release, keeps a "chore(main): release x.y.z" pull request up to date
-      # with the changelog, and tags the release when that PR is merged. The
-      # tag then triggers the Release workflow, which builds the binaries.
+      # Works out the next version from commit messages since the last release,
+      # keeps a "chore(main): release x.y.z" pull request up to date with the
+      # changelog, and tags the release when that pull request is merged.
       - uses: googleapis/release-please-action@v4
+        id: rp
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+  # The tag release-please creates uses the default token, which by design does
+  # not trigger the tag-push workflow, so the build is called from here instead.
+  build:
+    needs: release-please
+    if: needs.release-please.outputs.released == 'true'
+    uses: ./.github/workflows/build-release.yml
+    with:
+      tag: ${{ needs.release-please.outputs.tag }}

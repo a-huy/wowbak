@@ -1,0 +1,115 @@
+name: Build release artifacts
+
+# Called both by a hand-pushed tag and by release-please. A tag created with the
+# default token does not trigger workflows, so release-please has to call this
+# itself rather than relying on the tag push.
+on:
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to build and attach binaries to
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  TAG: ${{ inputs.tag }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          check-latest: true
+
+      - name: Test before publishing
+        run: go vet ./... && go test ./...
+
+      - name: Build every target
+        run: |
+          VERSION="${TAG}"
+          DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          LDFLAGS="-s -w -X main.version=${VERSION} -X main.commit=${GITHUB_SHA::7} -X main.buildDate=${DATE}"
+          mkdir -p dist/WowBackup/backups
+
+          # Command-line builds. The names match the portable folder, so
+          # self-update can map a local file to its release asset.
+          build() { GOOS=$1 GOARCH=$2 go build -trimpath -ldflags="$LDFLAGS" -o "dist/WowBackup/$3" . ; }
+          build windows amd64 wowbak.exe
+          build windows arm64 wowbak-arm64.exe
+          build darwin  arm64 wowbak-macos
+          build darwin  amd64 wowbak-macos-intel
+          build linux   amd64 wowbak-linux
+          build linux   arm64 wowbak-linux-arm64
+
+          # Double-click launchers: no console on Windows, a bundle on macOS.
+          GOOS=windows GOARCH=amd64 go build -trimpath \
+            -ldflags="$LDFLAGS -H windowsgui" -o dist/WowBackup/WowBackup.exe .
+          APP=dist/WowBackup/WowBackup.app/Contents
+          mkdir -p "$APP/MacOS"
+          GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="$LDFLAGS" -o /tmp/wb-arm .
+          GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags="$LDFLAGS" -o /tmp/wb-amd .
+          cp /tmp/wb-arm "$APP/MacOS/WowBackup"   # lipo is unavailable on Linux runners
+          cat > "$APP/Info.plist" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleName</key><string>WowBackup</string>
+            <key>CFBundleDisplayName</key><string>WowBackup</string>
+            <key>CFBundleIdentifier</key><string>local.wowbak.app</string>
+            <key>CFBundleExecutable</key><string>WowBackup</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>LSUIElement</key><true/>
+          </dict>
+          </plist>
+          PLIST
+
+          cp README.md LICENSE dist/WowBackup/
+          dist/WowBackup/wowbak-linux config init >/dev/null 2>&1 || true
+
+      - name: Package
+        run: |
+          cd dist
+          zip -qr "WowBackup-${TAG}.zip" WowBackup
+          cd WowBackup
+          for f in wowbak.exe wowbak-arm64.exe wowbak-macos wowbak-macos-intel \
+                   wowbak-linux wowbak-linux-arm64 WowBackup.exe; do
+            [ -f "$f" ] && cp "$f" "../$f"
+          done
+          cd ..
+          sha256sum WowBackup-*.zip wowbak* WowBackup.exe > checksums.txt
+          ls -la
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ASSETS="dist/WowBackup-*.zip
+                  dist/wowbak.exe dist/wowbak-arm64.exe
+                  dist/wowbak-macos dist/wowbak-macos-intel
+                  dist/wowbak-linux dist/wowbak-linux-arm64
+                  dist/WowBackup.exe dist/checksums.txt"
+
+          # release-please creates the release when its pull request is merged,
+          # so attach to that one if it exists. A hand-pushed tag has no release
+          # yet, so create it. Either way the assets end up in the same place.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "attaching binaries to the existing $TAG release"
+            gh release upload "$TAG" $ASSETS --clobber
+          else
+            echo "creating release $TAG"
+            gh release create "$TAG" --title "$TAG" --generate-notes $ASSETS
+          fi
