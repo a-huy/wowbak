@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.4](https://github.com/a-huy/wowbak/compare/v0.3.3...v0.3.4) (2026-08-30)
+
+
+### Fixes
+
+* ship a signed, universal app bundle ([2cca856](https://github.com/a-huy/wowbak/commit/2cca85682ce2eb9665b734144b03e4821b757ea1))
+
 ## [0.3.3](https://github.com/a-huy/wowbak/compare/v0.3.2...v0.3.3) (2026-08-30)
 
 
