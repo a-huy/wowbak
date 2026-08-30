@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/a-huy/wowbak/compare/v0.3.0...v0.3.1) (2026-08-30)
+
+
+### Fixes
+
+* self-update from a local build and from the app bundle ([b0e71d8](https://github.com/a-huy/wowbak/commit/b0e71d8650845c1df5814fb8c22e404b40db3556))
+
 ## [0.3.0](https://github.com/a-huy/wowbak/compare/v0.2.1...v0.3.0) (2026-08-30)
 
 
