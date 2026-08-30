@@ -80,12 +80,20 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" \
-            --title "${GITHUB_REF_NAME}" \
-            --generate-notes \
-            dist/WowBackup-*.zip \
-            dist/wowbak.exe dist/wowbak-arm64.exe \
-            dist/wowbak-macos dist/wowbak-macos-intel \
-            dist/wowbak-linux dist/wowbak-linux-arm64 \
-            dist/WowBackup.exe \
-            dist/checksums.txt
+          TAG="${GITHUB_REF_NAME}"
+          ASSETS="dist/WowBackup-*.zip
+                  dist/wowbak.exe dist/wowbak-arm64.exe
+                  dist/wowbak-macos dist/wowbak-macos-intel
+                  dist/wowbak-linux dist/wowbak-linux-arm64
+                  dist/WowBackup.exe dist/checksums.txt"
+
+          # release-please creates the release when its pull request is merged,
+          # so attach to that one if it exists. A hand-pushed tag has no release
+          # yet, so create it. Either way the assets end up in the same place.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "attaching binaries to the existing $TAG release"
+            gh release upload "$TAG" $ASSETS --clobber
+          else
+            echo "creating release $TAG"
+            gh release create "$TAG" --title "$TAG" --generate-notes $ASSETS
+          fi

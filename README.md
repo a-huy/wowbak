@@ -359,12 +359,33 @@ never touched.
 
 ## Releasing
 
+Versions are worked out from commit messages - nothing to bump by hand.
+
+Write commits in [Conventional Commits](https://www.conventionalcommits.org)
+form, because the prefix is what decides the next version:
+
+| Prefix | Effect | Example |
+|---|---|---|
+| `fix:` | patch, `0.1.0` -> `0.1.1` | `fix: stop truncating downloads over 32MB` |
+| `feat:` | minor, `0.1.0` -> `0.2.0` | `feat: update addons from GitHub releases` |
+| `feat!:` or `BREAKING CHANGE:` in the body | major | `feat!: drop the JSON config format` |
+| `docs:` `chore:` `refactor:` `test:` | no release | `docs: explain the token file` |
+
+On every push to `main`, release-please keeps a pull request open titled
+`chore(main): release x.y.z`, containing the computed version and the changelog
+it has built from those commits. **Merging that pull request cuts the release:**
+it tags, creates the GitHub release, and the tag triggers the build that attaches
+the binaries and `checksums.txt`.
+
+So the only decision left is *when* to release - merge the PR - rather than what
+to call it. A commit with no recognised prefix simply does not appear in the
+changelog and does not move the version.
+
+A tag pushed by hand still works if you need one:
+
 ```
 git tag v0.1.0 && git push origin v0.1.0
 ```
-
-The workflow tests, cross-compiles every target, and publishes the portable
-folder plus individual binaries and `checksums.txt` to a GitHub release.
 
 ## License
 

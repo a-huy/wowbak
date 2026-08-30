@@ -1,0 +1,22 @@
+name: Release Please
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      # Works out the next version from the commit messages since the last
+      # release, keeps a "chore(main): release x.y.z" pull request up to date
+      # with the changelog, and tags the release when that PR is merged. The
+      # tag then triggers the Release workflow, which builds the binaries.
+      - uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
