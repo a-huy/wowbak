@@ -124,3 +124,28 @@ func TestGitDescribeVersionsCountAsDevBuilds(t *testing.T) {
 		}
 	}
 }
+
+func TestGroupBySourceCountsFoldersOnce(t *testing.T) {
+	cfg := Config{Addons: map[string]string{
+		"simulationcraft":     "github:simulationcraft/simc-addon",
+		"narcissus":           "github:Peterodox/Narcissus",
+		"narcissus_bagfilter": "github:Peterodox/Narcissus",
+	}}
+	pkgs := []Package{
+		{Name: "Simulationcraft", Folders: []string{"Simulationcraft"}, Version: "1.0"},
+		{Name: "Narcissus", Folders: []string{"Narcissus"}, Version: "1.8.6"},
+		{Name: "Narcissus_BagFilter", Folders: []string{"Narcissus_BagFilter"}, Version: "1.0.2"},
+	}
+	tracked, _ := groupBySource(cfg, pkgs)
+
+	got := map[string]int{}
+	for _, g := range tracked {
+		got[g.pkg.Name] = len(g.pkg.Folders)
+	}
+	if got["Simulationcraft"] != 1 {
+		t.Errorf("Simulationcraft has 1 folder, grouped as %d", got["Simulationcraft"])
+	}
+	if got["Narcissus"] != 2 {
+		t.Errorf("Narcissus owns 2 folders here, grouped as %d", got["Narcissus"])
+	}
+}

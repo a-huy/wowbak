@@ -152,7 +152,11 @@ func groupBySource(cfg Config, pkgs []Package) ([]sourceGroup, []Package) {
 		key := src.String()
 		g := groups[key]
 		if g == nil {
+			// Start with no folders: they are appended below for every package
+			// in the group, including this first one. Seeding them here as well
+			// counted every folder twice.
 			g = &sourceGroup{src: src, pkg: p}
+			g.pkg.Folders = nil
 			groups[key] = g
 			order = append(order, key)
 		}
