@@ -334,3 +334,7 @@ rather than deleting them.
 
 Other flags: `--addons-only`, `--wtf-only`, `--flavor _retail_` (repeatable),
 `--create-missing` to create flavor dirs absent on the target.
+
+## License
+
+MIT - see [LICENSE](LICENSE).
