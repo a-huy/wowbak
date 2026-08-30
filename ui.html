@@ -146,6 +146,10 @@
   .st-untracked{ color: var(--muted); }
   .filters { display: flex; gap: 14px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
 
+  .verrow { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .verrow .grow { flex: 1; }
+  .newver { color: var(--warn); font-weight: 600; }
+
   .modeopt {
     display: flex; gap: 10px; align-items: flex-start; cursor: pointer;
     border: 1px solid var(--line); border-radius: 8px; padding: 11px 13px; margin-bottom: 9px;
@@ -215,6 +219,15 @@
     <h2 id="outputTitle">Output</h2>
     <pre class="log" id="log"></pre>
     <div class="actions" id="outputActions"></div>
+  </section>
+
+  <section class="card">
+    <h2>WowBackup itself</h2>
+    <div class="verrow">
+      <div class="grow" id="verState">Checking…</div>
+      <button class="small" id="btnVerCheck">Check for updates</button>
+    </div>
+    <div id="verActions"></div>
   </section>
 
   <div class="actions" style="justify-content:flex-end; margin-top:18px">
@@ -300,7 +313,7 @@ function setBusy(v) {
 
 async function refresh() {
   state = await api('/api/state');
-  $('hdr').textContent = `${state.machine} · ${state.os}`;
+  $('hdr').textContent = `${state.machine} · ${state.os} · ${state.version}`;
 
   const install = state.installOk
     ? esc(state.installPath)
@@ -574,6 +587,79 @@ $('btnDiscover').onclick = async () => {
   await runJob('Looking up addon sources', '/api/sources', {});
 };
 
+async function refreshVersion(check) {
+  const box = $('verState'), acts = $('verActions');
+  acts.innerHTML = '';
+
+  if (!check) {
+    // Cheap path: the version we are running, straight from /api/state.
+    box.innerHTML = state
+      ? `Running <strong>${esc(state.version)}</strong>` +
+        (state.devBuild ? ' <span class="pill">local build</span>' : '')
+      : '';
+    return;
+  }
+
+  box.textContent = 'Checking…';
+  let v;
+  try {
+    v = await api('/api/version');
+  } catch (e) {
+    box.innerHTML = `<span class="st-error">Could not check: ${esc(e.message)}</span>`;
+    return;
+  }
+
+  if (v.error) {
+    box.innerHTML = `Running <strong>${esc(v.current)}</strong><br>
+      <span class="st-error">${esc(v.error)}</span>`;
+    return;
+  }
+  if (v.devBuild) {
+    box.innerHTML = `Running <strong>${esc(v.current)}</strong>
+      <span class="pill">local build</span><br>
+      <span class="note">Latest release is ${esc(v.latest || 'unknown')}. A local build is
+      left alone, so it is never replaced by a release.</span>`;
+    return;
+  }
+  if (!v.available) {
+    box.innerHTML = `Running <strong>${esc(v.current)}</strong> — up to date`;
+    return;
+  }
+
+  box.innerHTML = `Running <strong>${esc(v.current)}</strong> ·
+    <span class="newver">${esc(v.latest)} is available</span>
+    ${v.url ? `· <a href="${esc(v.url)}" target="_blank" rel="noopener">release notes</a>` : ''}`;
+
+  if (!v.canUpdate) {
+    acts.innerHTML = `<p class="hint">No download published for this platform.</p>`;
+    return;
+  }
+  acts.innerHTML = `
+    <div class="actions">
+      <button class="primary" id="btnVerUpdate">Update to ${esc(v.latest)}</button>
+      ${v.siblings > 0
+        ? `<button id="btnVerUpdateAll">Update all ${v.siblings + 1} binaries here</button>` : ''}
+    </div>
+    ${v.siblings > 0
+      ? `<p class="hint">This folder also holds binaries for other platforms. Updating them
+         all keeps the whole folder in step, which matters if you carry it between machines.</p>`
+      : ''}`;
+
+  const run = async (all) => {
+    await runJob(all ? 'Updating every binary here' : 'Updating WowBackup',
+      '/api/self-update', { all }, () => {
+        $('verState').innerHTML =
+          `Updated to <strong>${esc(v.latest)}</strong>. Quit and start WowBackup again to run it.`;
+        $('verActions').innerHTML = '';
+      });
+  };
+  $('btnVerUpdate').onclick = () => run(false);
+  const all = $('btnVerUpdateAll');
+  if (all) all.onclick = () => run(true);
+}
+
+$('btnVerCheck').onclick = () => refreshVersion(true);
+
 async function refreshToken() {
   const t = await api('/api/token');
   const box = $('tokenState');
@@ -642,7 +728,7 @@ $('btnQuit').onclick = async () => {
 $('btnUpdateAll').disabled = true;
 refreshToken().catch(() => {});
 
-refresh().catch(e => {
+refresh().then(() => refreshVersion(false)).catch(e => {
   $('alerts').innerHTML = `<div class="banner bad">Could not talk to wowbak: ${esc(e.message)}.
     The window that started it may have been closed.</div>`;
 });

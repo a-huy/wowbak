@@ -189,6 +189,8 @@ func cmdGUI(args guiArgs) int {
 	mux.HandleFunc("/api/outdated", s.guard(s.handleOutdated))
 	mux.HandleFunc("/api/update", s.guard(s.handleUpdate))
 	mux.HandleFunc("/api/prune", s.guard(s.handlePrune))
+	mux.HandleFunc("/api/version", s.guard(s.handleVersion))
+	mux.HandleFunc("/api/self-update", s.guard(s.handleSelfUpdate))
 	mux.HandleFunc("/api/quit", s.guard(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"ok":true}`))
 		go func() { time.Sleep(200 * time.Millisecond); os.Exit(0) }()
@@ -293,6 +295,8 @@ type machineInfo struct {
 }
 
 type stateResponse struct {
+	Version     string        `json:"version"`
+	DevBuild    bool          `json:"devBuild"`
 	Machine     string        `json:"machine"`
 	OS          string        `json:"os"`
 	InstallPath string        `json:"installPath"`
@@ -308,6 +312,8 @@ func (s *server) handleState(w http.ResponseWriter, r *http.Request) {
 	cfg := loadConfig()
 	me := machineID()
 	resp := stateResponse{
+		Version:    versionString(),
+		DevBuild:   isDevBuild(),
 		Machine:    me,
 		OS:         osLabel(),
 		ConfigPath: cfg.pathOrNone(),
@@ -591,6 +597,52 @@ func (s *server) handlePrune(w http.ResponseWriter, r *http.Request) {
 	}
 	j := s.start("prune", func(*job) {
 		cmdPrune(pruneArgs{machine: req.Machine, force: req.Force})
+	})
+	writeJSON(w, map[string]string{"id": j.ID})
+}
+
+type versionResponse struct {
+	Current   string `json:"current"`
+	Latest    string `json:"latest"`
+	Available bool   `json:"available"`
+	DevBuild  bool   `json:"devBuild"`
+	URL       string `json:"url"`
+	Error     string `json:"error"`
+	CanUpdate bool   `json:"canUpdate"` // a download exists for this platform
+	Siblings  int    `json:"siblings"`  // other platforms' binaries in this folder
+}
+
+// handleVersion checks the repository for a newer release. One request, so it
+// answers directly rather than going through the job machinery.
+func (s *server) handleVersion(w http.ResponseWriter, r *http.Request) {
+	cfg := loadConfig()
+	tok, _ := cfg.githubToken()
+	info, err := checkSelfUpdate(newGHClient(tok))
+
+	out := versionResponse{Current: versionString(), DevBuild: isDevBuild()}
+	if err != nil {
+		out.Error = err.Error()
+		writeJSON(w, out)
+		return
+	}
+	out.Latest, out.URL, out.Available = info.Latest, info.URL, info.Available
+	out.CanUpdate = info.Asset.URL != ""
+	if self, err := os.Executable(); err == nil {
+		if resolved, err := filepath.EvalSymlinks(self); err == nil {
+			self = resolved
+		}
+		out.Siblings = len(siblingTargets(self)) - 1
+	}
+	writeJSON(w, out)
+}
+
+func (s *server) handleSelfUpdate(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		All bool `json:"all"`
+	}
+	decode(r, &req)
+	j := s.start("self-update", func(*job) {
+		cmdSelfUpdate(selfUpdateArgs{all: req.All})
 	})
 	writeJSON(w, map[string]string{"id": j.ID})
 }
