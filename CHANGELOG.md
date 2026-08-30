@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.5](https://github.com/a-huy/wowbak/compare/v0.3.4...v0.3.5) (2026-08-30)
+
+
+### Fixes
+
+* app bundle no longer hangs on the second launch ([34fd1fa](https://github.com/a-huy/wowbak/commit/34fd1faec161d57bbdc8b8c6c683c53286c2a0c4))
+
 ## [0.3.4](https://github.com/a-huy/wowbak/compare/v0.3.3...v0.3.4) (2026-08-30)
 
 
