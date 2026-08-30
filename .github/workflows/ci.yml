@@ -8,6 +8,10 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Release pull requests only touch the changelog and the version manifest,
+    # and the code in them has already been tested on main. Skipping keeps them
+    # from sitting waiting for a workflow approval they do not need.
+    if: ${{ !startsWith(github.head_ref, 'release-please--') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
