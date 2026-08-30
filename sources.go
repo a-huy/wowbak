@@ -201,18 +201,45 @@ func leadingName(s string) string {
 	return ""
 }
 
-// discover finds a GitHub repo for a package by reading its public Wago page.
-func discover(hc *http.Client, p Package) (source, string, bool) {
+// discover finds a GitHub repo for a package by reading its public Wago page,
+// then confirms the repo is actually usable.
+//
+// The links on those pages go stale: three addons were recorded against repos
+// that no longer exist, and every later check failed against them. A source that
+// cannot be fetched from is worse than no source, because it hides the addon
+// among real errors.
+func discover(hc *http.Client, gh *ghClient, p Package) (source, string, bool) {
 	for _, slug := range slugCandidates(p) {
 		page, err := fetchWagoPage(hc, slug)
-		if err != nil {
+		if err != nil || page.GitHub == "" {
 			continue
 		}
-		if page.GitHub != "" {
-			return source{Kind: "github", Repo: page.GitHub}, page.Slug, true
+		src := source{Kind: "github", Repo: page.GitHub}
+		if usableSource(gh, src) {
+			return src, page.Slug, true
 		}
 	}
 	return source{}, "", false
+}
+
+// usableSource reports whether a repository exists and publishes releases we
+// could actually install from.
+func usableSource(gh *ghClient, src source) bool {
+	rels, err := gh.releases(src.Repo)
+	if err != nil {
+		return false // missing, private, or renamed
+	}
+	for _, rel := range rels {
+		if rel.Draft || rel.Prerelease {
+			continue
+		}
+		for _, a := range rel.Assets {
+			if strings.HasSuffix(strings.ToLower(a.Name), ".zip") {
+				return true
+			}
+		}
+	}
+	return false // a repo with no packaged download is of no use here
 }
 
 func newHTTPClient() *http.Client { return &http.Client{Timeout: 30 * time.Second} }
@@ -224,6 +251,8 @@ func cmdSources(args sourcesArgs) int {
 	install := resolveInstall(args.installPath)
 	flavors := resolveFlavors(install, args.flavor)
 	hc := newHTTPClient()
+	tok, _ := cfg.githubToken()
+	gh := newGHClient(tok)
 
 	for _, flavor := range flavors {
 		pkgs := scanPackages(install, flavor)
@@ -250,10 +279,10 @@ func cmdSources(args sourcesArgs) int {
 				continue
 			}
 			fmt.Printf("  %-30s looking...", p.Name)
-			src, slug, ok := discover(hc, p)
+			src, slug, ok := discover(hc, gh, p)
 			if !ok {
 				missing++
-				fmt.Printf("\r  %-30s not found\n", p.Name)
+				fmt.Printf("\r  %-30s no usable source\n", p.Name)
 				continue
 			}
 			fmt.Printf("\r  %-30s %s   (via wago/%s)\n", p.Name, src, slug)

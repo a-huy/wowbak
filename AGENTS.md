@@ -74,6 +74,20 @@ It is a working install, not build output. It holds their settings
 | `web.go` | local HTTP server behind the interface |
 | `ui.html` | the interface, embedded with `go:embed` |
 
+## Where updates may come from
+
+Downloads come from GitHub releases only.
+
+A Wago addon page is read **once per addon**, purely to learn which GitHub
+repository the project lives in. Do not fetch downloads from Wago: their
+`robots.txt` disallows `/download/`, and they fund the service by selling API
+access, which automated downloading would route around. If broader coverage is
+ever wanted, the answer is their paid API, not scraping.
+
+Repositories found this way must be verified before being recorded - the links
+on those pages go stale, and a source that cannot be fetched from is worse than
+none, because the addon then hides among real errors.
+
 ## Rules that are easy to break
 
 **`fatalf` panics; it does not exit.** It is recovered in three places: the CLI

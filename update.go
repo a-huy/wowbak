@@ -217,7 +217,12 @@ func cmdOutdated(args updateArgs) int {
 				}
 			case r.Reason != "":
 				failed++
-				fmt.Printf("  ! %-28s %-14s %s\n", r.Pkg.Name, dash(r.Pkg.Version), r.Reason)
+				reason := r.Reason
+				if strings.Contains(reason, "not found") {
+					reason = "source no longer exists - remove addon." +
+						strings.ToLower(r.Pkg.Name) + " from wowbak.conf"
+				}
+				fmt.Printf("  ! %-28s %-14s %s\n", r.Pkg.Name, dash(r.Pkg.Version), reason)
 			case r.Outdated:
 				outdated++
 				fmt.Printf("  ~ %-28s %-14s -> %-14s %s\n",

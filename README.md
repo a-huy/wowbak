@@ -305,14 +305,18 @@ wowbak update --all           # do it
 ```
 
 Discovery reads each addon's public Wago page once, purely to learn which
-GitHub repo it lives in, then records it:
+GitHub repo it lives in, checks that the repo exists and publishes downloads,
+then records it:
 
 ```ini
 addon.weakauras = github:WeakAuras/WeakAuras2
 addon.dbm-core  = github:DeadlyBossMods/DeadlyBossMods
 ```
 
-All version checks and downloads then go through GitHub's API. Set a token to
+All version checks and downloads then go through GitHub's API. Nothing is
+downloaded from Wago: their robots.txt disallows it, and they sell API access to
+fund the site. Addons with no usable GitHub release are reported so you can
+update them yourself, rather than being silently skipped. Set a token to
 lift the rate limit from 60 to 5000 requests an hour - see **Config** above.
 
 ### Picking the right build
