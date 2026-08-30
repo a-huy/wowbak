@@ -4,14 +4,17 @@ on:
   push:
     branches: [main]
   pull_request:
+    # Release pull requests change only these two files. Filtering here rather
+    # than skipping the job matters: a bot-authored pull request needs workflow
+    # approval before any job runs, so a job-level condition never gets a chance
+    # to evaluate and the run ends up marked failed.
+    paths-ignore:
+      - 'CHANGELOG.md'
+      - '.release-please-manifest.json'
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    # Release pull requests only touch the changelog and the version manifest,
-    # and the code in them has already been tested on main. Skipping keeps them
-    # from sitting waiting for a workflow approval they do not need.
-    if: ${{ !startsWith(github.head_ref, 'release-please--') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
