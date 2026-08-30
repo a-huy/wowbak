@@ -177,6 +177,18 @@ func cmdGUI(args guiArgs) int {
 		}
 	}
 
+	// Launched from a macOS app bundle, hand the server to a detached child and
+	// exit at once.
+	//
+	// macOS treats a .app as something it can activate, and expects it to answer.
+	// A plain Go binary never registers with the window server, so an instance
+	// left running makes the next launch fail with "the application is not
+	// responding" - macOS is waiting for a reply that never comes. Exiting
+	// immediately means there is never a running app to activate.
+	if args.serve == false && !args.noBrowser && bundleFor(currentExe()) != "" {
+		return launchDetached(args)
+	}
+
 	tok := make([]byte, 16)
 	rand.Read(tok)
 	s := &server{token: hex.EncodeToString(tok), jobs: map[string]*job{}}
@@ -702,6 +714,60 @@ func (s *server) handleJob(w http.ResponseWriter, r *http.Request) {
 	}
 	snap := j.snapshot()
 	writeJSON(w, snap)
+}
+
+// currentExe resolves the running binary, following symlinks.
+func currentExe() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
+		return resolved
+	}
+	return exe
+}
+
+// launchDetached starts the server in a child process, waits for it to come up,
+// opens the browser and returns so the bundle's own process can exit.
+func launchDetached(args guiArgs) int {
+	exe := currentExe()
+	if exe == "" {
+		fatalf("cannot locate the running program")
+	}
+
+	logPath := filepath.Join(os.TempDir(), "wowbak-gui.log")
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if err != nil {
+		logFile = nil
+	}
+
+	cmd := exec.Command(exe, "gui", "--serve")
+	if logFile != nil {
+		cmd.Stdout, cmd.Stderr = logFile, logFile
+	}
+	detachProcess(cmd)
+	if err := cmd.Start(); err != nil {
+		showDialog("WowBackup", "WowBackup could not start.\n\n"+err.Error())
+		fatalf("could not start the interface: %v", err)
+	}
+	if logFile != nil {
+		logFile.Close()
+	}
+
+	// Wait for the child to record its address.
+	for i := 0; i < 100; i++ {
+		if s, ok := liveSession(); ok {
+			openBrowser(s.URL)
+			fmt.Printf("wowbak interface running at:\n  %s\n", s.URL)
+			return 0
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	showDialog("WowBackup",
+		"WowBackup started but did not become ready.\n\nDetails are in:\n"+logPath)
+	return 1
 }
 
 func openBrowser(url string) error {

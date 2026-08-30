@@ -80,6 +80,7 @@ type addonsArgs struct {
 type guiArgs struct {
 	port      int
 	noBrowser bool
+	serve     bool // run the server in this process rather than handing it to a child
 }
 
 type selfUpdateArgs struct {
@@ -256,6 +257,7 @@ func run() {
 		fs := flag.NewFlagSet("gui", flag.ExitOnError)
 		fs.IntVar(&a.port, "port", 0, "port to listen on (default: any free port)")
 		fs.BoolVar(&a.noBrowser, "no-browser", false, "print the address instead of opening a browser")
+		fs.BoolVar(&a.serve, "serve", false, "run the server here rather than in a detached child")
 		rejectExtra(parseArgs(fs, rest), "gui")
 		os.Exit(cmdGUI(a))
 
