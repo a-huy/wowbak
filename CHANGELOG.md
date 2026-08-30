@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.0](https://github.com/a-huy/wowbak/compare/v0.3.6...v0.4.0) (2026-08-30)
+
+
+### Features
+
+* report and clear addon sources that no longer exist ([32dc730](https://github.com/a-huy/wowbak/commit/32dc7302467c4e46cdb820e26666dc848a24bae1))
+
+
+### Fixes
+
+* count each addon folder once when grouping by source ([000717f](https://github.com/a-huy/wowbak/commit/000717f444fad6c840e8bdb087571df30fc29dc2))
+* only record an addon source that actually works ([0a07452](https://github.com/a-huy/wowbak/commit/0a074520f8de13b34edadbca171cc1108f5976fc))
+* stop re-offering an update the addon's .toc never reflects ([2af11fe](https://github.com/a-huy/wowbak/commit/2af11fe59120b3bc8aab40847272318bd1966158))
+
 ## [0.3.6](https://github.com/a-huy/wowbak/compare/v0.3.5...v0.3.6) (2026-08-30)
 
 
