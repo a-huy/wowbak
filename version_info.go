@@ -24,6 +24,11 @@ const repoSlug = "a-huy/wowbak"
 // e.g. v0.0.0-20260830063415-cdd488a15fc9.
 var pseudoVersion = regexp.MustCompile(`-\d{14}-[0-9a-f]{12}`)
 
+// describeSuffix matches what `git describe` appends when the commit is past the
+// last tag: v0.1.0-3-g6e2f7fe. That is a build from source, not a release, even
+// though it starts with a real tag.
+var describeSuffix = regexp.MustCompile(`-\d+-g[0-9a-f]{7,}$`)
+
 func versionString() string {
 	if version != "dev" && version != "" {
 		return version
@@ -43,7 +48,17 @@ func versionString() string {
 	return "dev"
 }
 
-func isDevBuild() bool { return versionString() == "dev" }
+// isDevBuild reports whether this binary was built from a working tree rather
+// than published as a release. Only an exact tag counts as a release: a
+// `git describe` version like v0.1.0-3-g6e2f7fe is three commits past v0.1.0
+// and must not be "upgraded" to a release, which would discard the local build.
+func isDevBuild() bool {
+	v := versionString()
+	return v == "dev" || v == "" ||
+		strings.HasSuffix(v, "-dirty") ||
+		describeSuffix.MatchString(v) ||
+		pseudoVersion.MatchString(v)
+}
 
 func cmdVersion() int {
 	fmt.Printf("wowbak %s\n", versionString())

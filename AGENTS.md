@@ -111,6 +111,11 @@ no overall deadline.
 reported it permanently outdated. `alpha`, `beta` and `rc` are deliberately *not*
 in that list, since they really do order before a release.
 
+**Only an exact tag counts as a release.** `git describe` produces
+`v0.1.0-3-g6e2f7fe` for a commit past a tag, which looked like a release and let
+a local build try to replace itself with a published one. `isDevBuild` rejects
+that form, `-dirty`, and Go's pseudo-versions.
+
 **A local build reports `dev` and never self-updates.** That is what stops a
 release from overwriting someone's working copy. `versionString` rejects Go's
 pseudo-versions for the same reason.
@@ -119,6 +124,12 @@ pseudo-versions for the same reason.
 another Battle.net account's saved variables would destroy settings for nothing.
 `--replace-addons` exists because merging an addon folder leaves files from a
 newer version beside an older `.toc` - a combination that never shipped.
+
+**The binary inside `WowBackup.app` is called `WowBackup`**, and no asset is
+published under that name - it is just the platform's normal build. Filenames
+with no published asset map to `releaseAssetName()`. The bundle also sits three
+levels below the folder, so `siblingTargets` uses `exeDir()` rather than the
+executable's own directory, or updating from inside the bundle finds nothing.
 
 ## The web interface
 

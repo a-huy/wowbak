@@ -96,3 +96,31 @@ func TestPseudoVersionPattern(t *testing.T) {
 		}
 	}
 }
+
+func TestGitDescribeVersionsCountAsDevBuilds(t *testing.T) {
+	saved := version
+	defer func() { version = saved }()
+
+	// Built from a working tree: must never self-update, or a local build gets
+	// silently replaced by a release.
+	for _, v := range []string{
+		"dev",
+		"v0.1.0-3-g6e2f7fe",
+		"v0.2.1-12-gabc1234",
+		"v0.1.0-dirty",
+		"v0.0.0-20260830063415-cdd488a15fc9",
+	} {
+		version = v
+		if !isDevBuild() {
+			t.Errorf("%q should count as a development build", v)
+		}
+	}
+
+	// Published releases: exact tags only.
+	for _, v := range []string{"v0.1.0", "v0.2.1", "v1.0.0", "v2.0.0-rc1"} {
+		version = v
+		if isDevBuild() {
+			t.Errorf("%q is a release and should not count as a development build", v)
+		}
+	}
+}

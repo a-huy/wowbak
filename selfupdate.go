@@ -181,17 +181,19 @@ func cmdSelfUpdate(args selfUpdateArgs) int {
 		targets = siblingTargets(self)
 	}
 
-	dir := filepath.Dir(self)
-	if err := checkWritable(dir); err != nil {
-		fatalf("cannot write to %s: %v\nNo files were changed.", dir, err)
-	}
-
-	updated := 0
+	updated, failed := 0, 0
 	for _, t := range targets {
 		name := filepath.Base(t)
+		if err := checkWritable(filepath.Dir(t)); err != nil {
+			fmt.Printf("  %-22s cannot write there: %v\n", name, err)
+			failed++
+			continue
+		}
 		asset, ok := assetFor(gh, info, name)
 		if !ok {
-			fmt.Printf("  %-22s no matching download in %s\n", name, info.Latest)
+			fmt.Printf("  %-22s no download published for %s/%s\n",
+				name, runtime.GOOS, runtime.GOARCH)
+			failed++
 			continue
 		}
 		tmp := t + ".new"
@@ -199,43 +201,79 @@ func cmdSelfUpdate(args selfUpdateArgs) int {
 		if err := gh.downloadTo(asset, tmp, nil); err != nil {
 			os.Remove(tmp)
 			fmt.Printf("  %-22s failed: %v\n", name, err)
+			failed++
 			continue
 		}
 		if err := replaceBinary(t, tmp); err != nil {
 			os.Remove(tmp)
 			fmt.Printf("  %-22s failed: %v\n", name, err)
+			failed++
 			continue
 		}
 		updated++
 	}
 
-	fmt.Printf("\nupdated %d file(s) to %s\n", updated, info.Latest)
-	if updated > 0 {
-		fmt.Println("Restart wowbak to run the new version.")
+	if updated == 0 {
+		fmt.Printf("\nNothing was updated.\n")
+		return 1
 	}
+	fmt.Printf("\nupdated %d file(s) to %s", updated, info.Latest)
+	if failed > 0 {
+		fmt.Printf(", %d could not be updated", failed)
+	}
+	fmt.Println()
+	fmt.Println("Restart wowbak to run the new version.")
 	return 0
 }
 
-// siblingTargets lists the shipped binaries present next to the running one.
+// siblingTargets lists the shipped binaries in the same folder as the running
+// one. exeDir is used rather than the executable's own directory because a
+// macOS app bundle puts its binary three levels down, and the other platforms'
+// binaries sit beside the bundle, not beside it.
 func siblingTargets(self string) []string {
-	dir := filepath.Dir(self)
+	dir := exeDir()
+	if dir == "" {
+		dir = filepath.Dir(self)
+	}
 	seen := map[string]bool{self: true}
 	out := []string{self}
-	for _, name := range updatableSiblings {
-		p := filepath.Join(dir, name)
+
+	add := func(p string) {
 		if seen[p] {
-			continue
+			return
 		}
 		if _, err := os.Stat(p); err == nil {
 			seen[p] = true
 			out = append(out, p)
 		}
 	}
+	for _, name := range updatableSiblings {
+		add(filepath.Join(dir, name))
+	}
+	// The launcher bundle's binary, which is not a flat file in the folder.
+	add(filepath.Join(dir, "WowBackup.app", "Contents", "MacOS", "WowBackup"))
 	return out
 }
 
+// assetNameFor maps a local filename to the release asset that replaces it.
+// Names that are published verbatim map to themselves; anything else - notably
+// the binary inside WowBackup.app, which is called WowBackup - is just this
+// platform's build under a different name.
+func assetNameFor(local string) string {
+	for _, n := range updatableSiblings {
+		if n == local {
+			return n
+		}
+	}
+	return releaseAssetName()
+}
+
 // assetFor finds the published file matching a local filename.
-func assetFor(gh *ghClient, info *updateInfo, name string) (ghAsset, bool) {
+func assetFor(gh *ghClient, info *updateInfo, local string) (ghAsset, bool) {
+	name := assetNameFor(local)
+	if name == "" {
+		return ghAsset{}, false
+	}
 	if info.Asset.Name == name {
 		return info.Asset, true
 	}
