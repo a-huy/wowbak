@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
 	"embed"
 	"encoding/hex"
@@ -14,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -165,6 +167,16 @@ func (s *server) start(kind string, fn func(j *job)) *job {
 }
 
 func cmdGUI(args guiArgs) int {
+	// Double-clicking an app that is already running should show you the one you
+	// have, not start a second invisible copy on a different port.
+	if !args.noBrowser {
+		if prev, ok := liveSession(); ok {
+			fmt.Printf("wowbak is already running at:\n  %s\n", prev.URL)
+			openBrowser(prev.URL)
+			return 0
+		}
+	}
+
 	tok := make([]byte, 16)
 	rand.Read(tok)
 	s := &server{token: hex.EncodeToString(tok), jobs: map[string]*job{}}
@@ -194,14 +206,29 @@ func cmdGUI(args guiArgs) int {
 	mux.HandleFunc("/api/self-update", s.guard(s.handleSelfUpdate))
 	mux.HandleFunc("/api/quit", s.guard(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"ok":true}`))
-		go func() { time.Sleep(200 * time.Millisecond); os.Exit(0) }()
+		go func() {
+			time.Sleep(200 * time.Millisecond)
+			clearSession()
+			os.Exit(0)
+		}()
 	}))
+
+	_, port, _ := net.SplitHostPort(ln.Addr().String())
+	p, _ := strconv.Atoi(port)
+	writeSession(session{PID: os.Getpid(), Port: p, URL: url})
+	defer clearSession()
 
 	fmt.Println("wowbak interface running at:")
 	fmt.Printf("  %s\n\n", url)
 	fmt.Println("Leave this window open while you use it. Close it, or press Ctrl+C, to stop.")
 	if !args.noBrowser {
-		openBrowser(url)
+		if err := openBrowser(url); err != nil {
+			// Launched from the app bundle there is no console to print to, so
+			// the address has to be put on screen or it is unreachable.
+			showDialog("WowBackup",
+				"WowBackup is running, but your browser could not be opened.\n\n"+
+					"Open this address yourself:\n"+url)
+		}
 	}
 	if err := http.Serve(ln, mux); err != nil {
 		fatalf("interface stopped: %v", err)
@@ -677,7 +704,7 @@ func (s *server) handleJob(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, snap)
 }
 
-func openBrowser(url string) {
+func openBrowser(url string) error {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
@@ -690,5 +717,68 @@ func openBrowser(url string) {
 	if err := cmd.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "could not open a browser automatically: %v\n", err)
 		fmt.Fprintln(os.Stderr, "Copy the address above into your browser instead.")
+		return err
 	}
+	return nil
+}
+
+// --------------------------------------------------------------- one instance
+
+// session records a running interface so a second launch can join it rather
+// than starting another invisible server. It lives in the temp directory, not
+// beside the binary: it is per-machine state, it holds the session token, and a
+// USB stick is often a filesystem with no usable permissions.
+type session struct {
+	PID  int    `json:"pid"`
+	Port int    `json:"port"`
+	URL  string `json:"url"`
+}
+
+func sessionPath() string {
+	h := sha256.Sum256([]byte(exeDir()))
+	return filepath.Join(os.TempDir(), fmt.Sprintf("wowbak-session-%x.json", h[:8]))
+}
+
+// liveSession returns the running interface for this install, if there is one.
+// A recorded session whose port no longer answers is stale and ignored.
+func liveSession() (*session, bool) {
+	data, err := os.ReadFile(sessionPath())
+	if err != nil {
+		return nil, false
+	}
+	var s session
+	if json.Unmarshal(data, &s) != nil || s.Port == 0 || s.URL == "" {
+		return nil, false
+	}
+	conn, err := net.DialTimeout("tcp",
+		fmt.Sprintf("127.0.0.1:%d", s.Port), 700*time.Millisecond)
+	if err != nil {
+		return nil, false // nothing listening; the previous run is gone
+	}
+	conn.Close()
+	return &s, true
+}
+
+func writeSession(s session) {
+	data, _ := json.Marshal(s)
+	os.WriteFile(sessionPath(), data, 0o600)
+}
+
+func clearSession() { os.Remove(sessionPath()) }
+
+// showDialog puts a message on screen. When launched from an app bundle there
+// is no console, so without this a failure to open the browser is completely
+// silent - the app appears to do nothing at all.
+func showDialog(title, message string) {
+	if runtime.GOOS != "darwin" {
+		return
+	}
+	script := fmt.Sprintf(
+		`display dialog %s with title %s buttons {"OK"} default button "OK"`,
+		osaQuote(message), osaQuote(title))
+	exec.Command("/usr/bin/osascript", "-e", script).Run()
+}
+
+func osaQuote(s string) string {
+	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(s) + `"`
 }
