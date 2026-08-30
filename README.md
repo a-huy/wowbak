@@ -289,7 +289,7 @@ Each update snapshots the folders it replaces into this machine's backup folder
 first, and prints the command that puts them back:
 
 ```
-undo: wowbak restore hecate/wowbak-pre-update-MythicDungeonTools-...zip --force --replace-addons
+undo: wowbak restore my-laptop/wowbak-pre-update-MythicDungeonTools-...zip --force --replace-addons
 ```
 
 `--replace-addons` matters: a plain restore merges, which would leave files from
