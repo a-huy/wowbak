@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.3](https://github.com/a-huy/wowbak/compare/v0.3.2...v0.3.3) (2026-08-30)
+
+
+### Fixes
+
+* joining a running interface instead of starting another ([e63bf7d](https://github.com/a-huy/wowbak/commit/e63bf7da7e53b41b861eb2f379d3e2354cc63f8a))
+
 ## [0.3.2](https://github.com/a-huy/wowbak/compare/v0.3.1...v0.3.2) (2026-08-30)
 
 
