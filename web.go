@@ -742,7 +742,9 @@ func launchDetached(args guiArgs) int {
 		logFile = nil
 	}
 
-	cmd := exec.Command(exe, "gui", "--serve")
+	// --no-browser matters: the launcher opens the page once the child is up.
+	// Without it the child opens one too and you get two tabs.
+	cmd := exec.Command(exe, "gui", "--serve", "--no-browser")
 	if logFile != nil {
 		cmd.Stdout, cmd.Stderr = logFile, logFile
 	}
