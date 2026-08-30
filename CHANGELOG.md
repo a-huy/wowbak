@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.6](https://github.com/a-huy/wowbak/compare/v0.3.5...v0.3.6) (2026-08-30)
+
+
+### Fixes
+
+* one browser tab per launch, not two ([b745b47](https://github.com/a-huy/wowbak/commit/b745b473f04a15297fccdc87c6831a5f0c256f20))
+
 ## [0.3.5](https://github.com/a-huy/wowbak/compare/v0.3.4...v0.3.5) (2026-08-30)
 
 
