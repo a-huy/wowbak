@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/a-huy/wowbak/compare/v0.3.1...v0.3.2) (2026-08-30)
+
+
+### Fixes
+
+* re-sign the app bundle after updating its binary ([43718ab](https://github.com/a-huy/wowbak/commit/43718ab1ebf854e3a17b180eb9ea0bacdda7d778))
+
 ## [0.3.1](https://github.com/a-huy/wowbak/compare/v0.3.0...v0.3.1) (2026-08-30)
 
 
