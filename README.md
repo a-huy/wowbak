@@ -314,6 +314,21 @@ undo: wowbak restore my-laptop/wowbak-pre-update-MythicDungeonTools-...zip --for
 the newer version beside the older `.toc` - a combination that never shipped.
 Add `--clean` as well to also set aside folders the newer version introduced.
 
+## Deleting backups
+
+In the interface every archive has a **Delete** button, which asks first and
+then removes just that one.
+
+From the command line:
+
+```
+wowbak delete backups/gaming-pc/wowbak-DATE.zip           # lists it
+wowbak delete backups/gaming-pc/wowbak-DATE.zip --force   # removes it
+```
+
+Deletion refuses anything outside the backup folder, so a bad path cannot reach
+the rest of the disk.
+
 ## Clearing out undo points
 
 Every restore and update writes an undo point, and they add up - a snapshot of a
@@ -324,7 +339,7 @@ wowbak prune                      # list this machine's undo points
 wowbak prune --force              # delete them
 wowbak prune gaming-pc --force    # another machine's
 wowbak prune --keep 3 --force     # keep the three newest
-wowbak prune --backups --force    # also remove ordinary backups
+wowbak prune --backups --force    # also remove that machine's backups
 ```
 
 Without `--force` it only lists, so you always see what would go first. Ordinary

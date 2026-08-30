@@ -783,3 +783,93 @@ func cmdPrune(args pruneArgs) int {
 	fmt.Printf("\nremoved %d file(s), freeing %s\n", removed, human(total))
 	return 0
 }
+
+// deleteArchive removes one archive, refusing anything outside the backup
+// folder. The path can arrive from the browser, so it is never trusted: without
+// this check a crafted request could delete arbitrary files.
+func deleteArchive(cfg Config, path string) error {
+	root, err := filepath.Abs(cfg.backupRoot())
+	if err != nil {
+		return err
+	}
+	abs, err := filepath.Abs(expandHome(path))
+	if err != nil {
+		return err
+	}
+	if resolved, err := filepath.EvalSymlinks(abs); err == nil {
+		abs = resolved
+	}
+	if rootResolved, err := filepath.EvalSymlinks(root); err == nil {
+		root = rootResolved
+	}
+
+	rel, err := filepath.Rel(root, abs)
+	if err != nil || rel == "." || strings.HasPrefix(rel, "..") ||
+		strings.HasPrefix(rel, string(filepath.Separator)) {
+		return fmt.Errorf("%s is outside the backup folder", path)
+	}
+	if !strings.EqualFold(filepath.Ext(abs), ".zip") {
+		return fmt.Errorf("%s is not an archive", filepath.Base(abs))
+	}
+	st, err := os.Stat(abs)
+	if err != nil {
+		return err
+	}
+	if st.IsDir() {
+		return fmt.Errorf("%s is a folder", filepath.Base(abs))
+	}
+	return os.Remove(abs)
+}
+
+func cmdDelete(args deleteArgs) int {
+	cfg := loadConfig()
+	if len(args.paths) == 0 {
+		fatalf("name the archive(s) to delete, or use 'wowbak prune' to clear undo points")
+	}
+
+	type target struct {
+		path string
+		size int64
+		desc string
+	}
+	var targets []target
+	var total int64
+	for _, p := range args.paths {
+		abs, _ := filepath.Abs(expandHome(p))
+		st, err := os.Stat(abs)
+		if err != nil {
+			fatalf("cannot read %s: %v", p, err)
+		}
+		desc, _ := summarizeArchive(abs)
+		targets = append(targets, target{abs, st.Size(), desc})
+		total += st.Size()
+	}
+
+	fmt.Printf("%d archive(s), %s\n\n", len(targets), human(total))
+	for _, t := range targets {
+		fmt.Printf("  %-44s %10s\n", filepath.Base(t.path), human(t.size))
+		fmt.Printf("  %-44s %s\n", "", t.desc)
+	}
+
+	if !args.force {
+		fmt.Println("\nNothing was deleted. Re-run with --force to remove these.")
+		return 0
+	}
+	removed := 0
+	var freed int64
+	failed := 0
+	for _, t := range targets {
+		if err := deleteArchive(cfg, t.path); err != nil {
+			fmt.Fprintf(os.Stderr, "\nerror: %v\n", err)
+			failed++
+			continue
+		}
+		removed++
+		freed += t.size // only count what actually went
+	}
+	fmt.Printf("\nremoved %d archive(s), freeing %s\n", removed, human(freed))
+	if failed > 0 {
+		return 1
+	}
+	return 0
+}

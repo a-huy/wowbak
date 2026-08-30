@@ -87,6 +87,11 @@ type selfUpdateArgs struct {
 	all   bool
 }
 
+type deleteArgs struct {
+	paths []string
+	force bool
+}
+
 type pruneArgs struct {
 	machine string
 	keep    int
@@ -122,6 +127,7 @@ commands:
   list        list archives in the backup folder, grouped by machine
   machines    list the machines this config knows about
   prune       remove undo points (and optionally backups) for a machine
+  delete      delete specific backup archives
   scan        show what would be backed up
   backup      write a portable archive
   inspect     print an archive's metadata
@@ -303,6 +309,13 @@ func run() {
 			"also update the other platforms' binaries in this folder")
 		rejectExtra(parseArgs(fs, rest), "self-update")
 		os.Exit(cmdSelfUpdate(a))
+
+	case "delete":
+		var a deleteArgs
+		fs := flag.NewFlagSet("delete", flag.ExitOnError)
+		fs.BoolVar(&a.force, "force", false, "actually delete; without this it only lists")
+		a.paths = parseArgs(fs, rest)
+		os.Exit(cmdDelete(a))
 
 	case "prune":
 		var a pruneArgs

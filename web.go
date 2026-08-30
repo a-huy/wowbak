@@ -189,6 +189,7 @@ func cmdGUI(args guiArgs) int {
 	mux.HandleFunc("/api/outdated", s.guard(s.handleOutdated))
 	mux.HandleFunc("/api/update", s.guard(s.handleUpdate))
 	mux.HandleFunc("/api/prune", s.guard(s.handlePrune))
+	mux.HandleFunc("/api/delete", s.guard(s.handleDelete))
 	mux.HandleFunc("/api/version", s.guard(s.handleVersion))
 	mux.HandleFunc("/api/self-update", s.guard(s.handleSelfUpdate))
 	mux.HandleFunc("/api/quit", s.guard(func(w http.ResponseWriter, r *http.Request) {
@@ -590,13 +591,14 @@ func (s *server) handlePrune(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Machine string `json:"machine"`
 		Force   bool   `json:"force"`
+		Backups bool   `json:"backups"`
 	}
 	decode(r, &req)
 	if req.Machine == "" {
 		fatalf("no machine given")
 	}
 	j := s.start("prune", func(*job) {
-		cmdPrune(pruneArgs{machine: req.Machine, force: req.Force})
+		cmdPrune(pruneArgs{machine: req.Machine, force: req.Force, backups: req.Backups})
 	})
 	writeJSON(w, map[string]string{"id": j.ID})
 }
@@ -614,6 +616,22 @@ type versionResponse struct {
 
 // handleVersion checks the repository for a newer release. One request, so it
 // answers directly rather than going through the job machinery.
+// handleDelete removes one archive. deleteArchive validates that the path is
+// inside the backup folder, since it arrives from the page.
+func (s *server) handleDelete(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Path string `json:"path"`
+	}
+	decode(r, &req)
+	if req.Path == "" {
+		fatalf("no archive given")
+	}
+	if err := deleteArchive(loadConfig(), req.Path); err != nil {
+		fatalf("could not delete it: %v", err)
+	}
+	writeJSON(w, map[string]bool{"ok": true})
+}
+
 func (s *server) handleVersion(w http.ResponseWriter, r *http.Request) {
 	cfg := loadConfig()
 	tok, _ := cfg.githubToken()

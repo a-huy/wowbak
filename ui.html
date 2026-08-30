@@ -387,6 +387,7 @@ async function refresh() {
               <div class="btns">
                 <button class="small" data-act="diff" data-p="${esc(a.path)}">Compare</button>
                 <button class="small" data-act="restore" data-p="${esc(a.path)}" data-n="${esc(a.name)}" data-m="${esc(m.name)}">Restore</button>
+                <button class="small danger" data-act="delete" data-p="${esc(a.path)}" data-n="${esc(a.name)}" title="Delete this archive">Delete</button>
               </div>
             </div>`).join('')
           : `<p class="empty">No backups from this machine yet.</p>`}
@@ -457,6 +458,21 @@ $('backups').onclick = async (e) => {
   }
 
   const archive = btn.dataset.p;
+
+  if (btn.dataset.act === 'delete') {
+    const name = btn.dataset.n;
+    if (!confirm(`Delete ${name}?\n\nThis is the only copy. It cannot be undone.`)) return;
+    btn.disabled = true;
+    try {
+      await api('/api/delete', { path: archive });
+      await refresh();
+    } catch (e) {
+      btn.disabled = false;
+      alert('Could not delete it: ' + e.message);
+    }
+    return;
+  }
+
   if (btn.dataset.act === 'diff') {
     await runJob('Comparing with this machine', '/api/diff', { archive, files: true });
     return;
