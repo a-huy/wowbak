@@ -159,6 +159,11 @@ responding". `selfupdate.go` re-signs the bundle ad-hoc afterwards. Anything els
 that writes into the bundle must do the same. `/usr/bin/codesign` ships with
 macOS, so this needs no developer tools.
 
+**Release builds run on macOS**, not Linux. The `.app` has to be made universal
+with `lipo` and signed with `codesign`, and neither exists on a Linux runner. A
+bundle assembled by hand and shipped unsigned makes macOS refuse to open it,
+reporting "WowBackup is damaged" - which points at nothing useful.
+
 Do not try to work around the prompt in code. There is no API for it, and asking
 is the correct behaviour for a tool that reads and writes a user's drives.
 

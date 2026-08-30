@@ -101,6 +101,28 @@ terminal's permissions, and Terminal's own signature never changes.
 Only a Developer ID signature would make the grant survive updates, and that
 needs a paid Apple developer account.
 
+### "WowBackup is damaged and can't be opened"
+
+macOS says this about any downloaded app that is not signed by a paid Apple
+developer account. Nothing is damaged. It is the quarantine flag your browser
+attaches to the download, combined with an ad-hoc signature.
+
+```
+xattr -d com.apple.quarantine /path/to/WowBackup.app
+```
+
+Then open it normally. Extracting the zip from a terminal with `unzip` rather
+than double-clicking it in Finder avoids the flag in the first place.
+
+On a FAT-formatted USB drive there is one extra step: FAT cannot store extended
+attributes, so macOS writes them as `._` sidecar files, and those break code
+signing. Remove them before signing anything on such a drive:
+
+```
+find /path/to/WowBackup.app -name "._*" -delete
+codesign --force --sign - --identifier local.wowbak.app /path/to/WowBackup.app
+```
+
 ### If the app will not open
 
 If macOS says WowBackup "is not responding" when you double-click it, its

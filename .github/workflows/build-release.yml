@@ -24,7 +24,9 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # macOS, because only there can the .app be made universal and signed.
+    # Go cross-compiles the Windows and Linux binaries from here just as well.
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -61,7 +63,7 @@ jobs:
           mkdir -p "$APP/MacOS"
           GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="$LDFLAGS" -o /tmp/wb-arm .
           GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags="$LDFLAGS" -o /tmp/wb-amd .
-          cp /tmp/wb-arm "$APP/MacOS/WowBackup"   # lipo is unavailable on Linux runners
+          lipo -create /tmp/wb-arm /tmp/wb-amd -output "$APP/MacOS/WowBackup"
           cat > "$APP/Info.plist" <<'PLIST'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -78,7 +80,16 @@ jobs:
           PLIST
 
           cp README.md LICENSE dist/WowBackup/
-          dist/WowBackup/wowbak-linux config init >/dev/null 2>&1 || true
+          dist/WowBackup/wowbak-macos config init >/dev/null 2>&1 || true
+
+          # A bundle's signature covers its contents. Assembling one by hand and
+          # shipping it unsigned makes macOS refuse to open it with "WowBackup is
+          # damaged", which says nothing about the real cause.
+          codesign --force --sign - --identifier local.wowbak.app \
+            dist/WowBackup/WowBackup.app
+          codesign --force --sign - --identifier local.wowbak.cli \
+            dist/WowBackup/wowbak-macos dist/WowBackup/wowbak-macos-intel
+          codesign --verify --verbose=2 dist/WowBackup/WowBackup.app
 
       - name: Package
         run: |
@@ -90,7 +101,7 @@ jobs:
             [ -f "$f" ] && cp "$f" "../$f"
           done
           cd ..
-          sha256sum WowBackup-*.zip wowbak* WowBackup.exe > checksums.txt
+          shasum -a 256 WowBackup-*.zip wowbak* WowBackup.exe > checksums.txt
           ls -la
 
       - name: Publish
