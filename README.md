@@ -335,6 +335,37 @@ rather than deleting them.
 Other flags: `--addons-only`, `--wtf-only`, `--flavor _retail_` (repeatable),
 `--create-missing` to create flavor dirs absent on the target.
 
+## Versions and updating wowbak itself
+
+```
+wowbak version              # what you are running
+wowbak self-update --check  # is there anything newer
+wowbak self-update          # update this binary
+wowbak self-update --all    # update every binary in this folder
+```
+
+`--all` matters on a USB stick: the folder carries a binary per platform, and
+updating only the one you happen to be running would leave the rest behind.
+
+Releases are built by GitHub Actions from a `v*` tag and carry the version,
+commit and build date. A binary built locally reports itself as `dev` and will
+never offer to update, so a working copy is not replaced by a release.
+
+Updating replaces a binary that may be running. The new file is downloaded and
+checked in full before anything moves; the old one is renamed rather than
+deleted, which is also the only way to replace a running program on Windows, and
+is cleared away the next time wowbak starts. Your settings, token and backups are
+never touched.
+
+## Releasing
+
+```
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+The workflow tests, cross-compiles every target, and publishes the portable
+folder plus individual binaries and `checksums.txt` to a GitHub release.
+
 ## License
 
 MIT - see [LICENSE](LICENSE).

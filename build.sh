@@ -13,8 +13,18 @@ OUT=dist/WowBackup
 mkdir -p "$OUT/backups"
 rm -rf "$OUT/WowBackup.app"   # a directory, so it is replaced rather than merged
 
+# Stamp the version from git so a locally built binary knows what it is. A tree
+# with no tags builds as "dev", which self-update treats as "do not touch".
+VERSION=$(git describe --tags --exact-match 2>/dev/null \
+       || git describe --tags --dirty 2>/dev/null \
+       || echo dev)
+COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "")
+DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+LDFLAGS="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.buildDate=${DATE}"
+echo "version: ${VERSION}"
+
 build() {
-  GOOS=$1 GOARCH=$2 go build -trimpath -ldflags="-s -w" -o "$OUT/$3" .
+  GOOS=$1 GOARCH=$2 go build -trimpath -ldflags="$LDFLAGS" -o "$OUT/$3" .
   echo "  $3"
 }
 
@@ -30,7 +40,7 @@ build linux   arm64 wowbak-linux-arm64
 echo "building double-click launchers:"
 
 # -H windowsgui drops the console window, so Windows shows only the browser.
-GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w -H windowsgui" \
+GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="$LDFLAGS -H windowsgui" \
   -o "$OUT/WowBackup.exe" .
 echo "  WowBackup.exe"
 

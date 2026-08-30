@@ -57,3 +57,42 @@ func TestNewerThanIsConservative(t *testing.T) {
 		t.Error("1.1 should be newer than 1.0")
 	}
 }
+
+func TestVersionStringRejectsPseudoVersions(t *testing.T) {
+	// A local build must report "dev": if it claimed a version, self-update
+	// would compare a synthetic string against real release tags.
+	saved := version
+	defer func() { version = saved }()
+
+	version = "dev"
+	if got := versionString(); got != "dev" {
+		t.Errorf("an unstamped build reported %q, want \"dev\"", got)
+	}
+	if !isDevBuild() {
+		t.Error("an unstamped build must count as a development build")
+	}
+
+	version = "v1.2.3"
+	if got := versionString(); got != "v1.2.3" {
+		t.Errorf("a stamped build reported %q, want \"v1.2.3\"", got)
+	}
+	if isDevBuild() {
+		t.Error("a stamped build must not count as a development build")
+	}
+}
+
+func TestPseudoVersionPattern(t *testing.T) {
+	for _, v := range []string{
+		"v0.0.0-20260830063415-cdd488a15fc9",
+		"v1.2.3-20260830063415-abcdef123456",
+	} {
+		if !pseudoVersion.MatchString(v) {
+			t.Errorf("%q should be recognised as a pseudo-version", v)
+		}
+	}
+	for _, v := range []string{"v1.2.3", "v0.1.0", "v2.0.0-rc1"} {
+		if pseudoVersion.MatchString(v) {
+			t.Errorf("%q is a real version, not a pseudo-version", v)
+		}
+	}
+}

@@ -82,6 +82,11 @@ type guiArgs struct {
 	noBrowser bool
 }
 
+type selfUpdateArgs struct {
+	check bool
+	all   bool
+}
+
 type pruneArgs struct {
 	machine string
 	keep    int
@@ -112,6 +117,8 @@ commands:
   outdated    check installed addons against their latest release
   update      download and install addon updates
   token       save the optional GitHub token used for addon update checks
+  version     print the version of wowbak you are running
+  self-update update wowbak itself to the latest release
   list        list archives in the backup folder, grouped by machine
   machines    list the machines this config knows about
   prune       remove undo points (and optionally backups) for a machine
@@ -138,6 +145,10 @@ func main() {
 }
 
 func run() {
+	// Clear leftovers from a previous self-update, now that the replaced binary
+	// is no longer running.
+	cleanStaleBinaries()
+
 	// No arguments means someone double-clicked it: open the interface.
 	if len(os.Args) < 2 {
 		os.Exit(cmdGUI(guiArgs{}))
@@ -280,6 +291,18 @@ func run() {
 		fs.BoolVar(&a.untracked, "untracked", false, "only show packages with no provider id")
 		rejectExtra(parseArgs(fs, rest), "addons")
 		os.Exit(cmdAddons(a))
+
+	case "version", "--version", "-v":
+		os.Exit(cmdVersion())
+
+	case "self-update":
+		var a selfUpdateArgs
+		fs := flag.NewFlagSet("self-update", flag.ExitOnError)
+		fs.BoolVar(&a.check, "check", false, "report whether an update exists, install nothing")
+		fs.BoolVar(&a.all, "all", false,
+			"also update the other platforms' binaries in this folder")
+		rejectExtra(parseArgs(fs, rest), "self-update")
+		os.Exit(cmdSelfUpdate(a))
 
 	case "prune":
 		var a pruneArgs
