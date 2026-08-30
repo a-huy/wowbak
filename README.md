@@ -101,6 +101,19 @@ terminal's permissions, and Terminal's own signature never changes.
 Only a Developer ID signature would make the grant survive updates, and that
 needs a paid Apple developer account.
 
+### If the app will not open
+
+If macOS says WowBackup "is not responding" when you double-click it, its
+signature no longer matches its contents - which happens if the binary inside the
+bundle was replaced. Re-sign it:
+
+```
+codesign --force --sign - --identifier local.wowbak.app /path/to/WowBackup.app
+```
+
+wowbak does this itself after a self-update; this is only needed if something
+else replaced the binary.
+
 ## Config
 
 `wowbak.conf` is a plain text file you edit in any editor — no JSON, no escaping

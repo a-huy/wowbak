@@ -153,6 +153,12 @@ build, so a grant given once does not survive an update - macOS asks again.
 least identifiable. It is still ad-hoc: only a Developer ID signature makes
 grants persist across updates, and that needs a paid Apple account.
 
+**Replacing a binary inside `WowBackup.app` invalidates the bundle's signature**,
+and macOS then refuses to launch it, reporting only that the application "is not
+responding". `selfupdate.go` re-signs the bundle ad-hoc afterwards. Anything else
+that writes into the bundle must do the same. `/usr/bin/codesign` ships with
+macOS, so this needs no developer tools.
+
 Do not try to work around the prompt in code. There is no API for it, and asking
 is the correct behaviour for a tool that reads and writes a user's drives.
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -116,6 +117,42 @@ func replaceBinary(target, newFile string) error {
 	return nil
 }
 
+// bundleFor returns the .app directory a path sits inside, or "".
+func bundleFor(p string) string {
+	dir := filepath.Dir(p) // .../Foo.app/Contents/MacOS
+	if filepath.Base(dir) != "MacOS" {
+		return ""
+	}
+	contents := filepath.Dir(dir)
+	if filepath.Base(contents) != "Contents" {
+		return ""
+	}
+	bundle := filepath.Dir(contents)
+	if !strings.EqualFold(filepath.Ext(bundle), ".app") {
+		return ""
+	}
+	return bundle
+}
+
+// resignBundle re-signs a macOS app bundle after its binary has been replaced.
+//
+// A bundle's signature covers its executable, so swapping the binary invalidates
+// it and macOS then refuses to launch the app at all - it reports that the
+// application "is not responding", which says nothing about the real cause.
+// Re-signing ad-hoc restores it. codesign ships with macOS, so this needs no
+// developer tools.
+func resignBundle(bundle string) error {
+	if runtime.GOOS != "darwin" || bundle == "" {
+		return nil
+	}
+	out, err := exec.Command("/usr/bin/codesign",
+		"--force", "--sign", "-", "--identifier", "local.wowbak.app", bundle).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%v: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
 // cleanStaleBinaries removes leftovers from a previous self-update. Called at
 // startup, when the replaced binary is no longer running.
 func cleanStaleBinaries() {
@@ -209,6 +246,16 @@ func cmdSelfUpdate(args selfUpdateArgs) int {
 			fmt.Printf("  %-22s failed: %v\n", name, err)
 			failed++
 			continue
+		}
+		// Replacing a bundle's binary invalidates its signature, and an app that
+		// will not launch is worse than one that is out of date.
+		if bundle := bundleFor(t); bundle != "" {
+			if err := resignBundle(bundle); err != nil {
+				fmt.Printf("  %-22s updated, but re-signing %s failed: %v\n",
+					name, filepath.Base(bundle), err)
+				fmt.Printf("  %-22s run: codesign --force --sign - --identifier local.wowbak.app %q\n",
+					"", bundle)
+			}
 		}
 		updated++
 	}
