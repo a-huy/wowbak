@@ -119,6 +119,13 @@ func (g *ghClient) get(url string) ([]byte, error) {
 	switch {
 	case resp.StatusCode == http.StatusNotFound:
 		return nil, errNotFound
+	case resp.StatusCode == http.StatusUnauthorized:
+		// Everything here reads public data, so a 401 means the stored token is
+		// wrong, expired or revoked - never that the request needed auth. Say so,
+		// because the bare status gives no clue where to look.
+		return nil, fmt.Errorf("GitHub rejected the stored token (it may be expired or revoked).\n" +
+			"       Clear it with 'wowbak token clear', or set a new one with 'wowbak token set <token>'.\n" +
+			"       Checks also work with no token at all, just at a lower rate limit")
 	case resp.StatusCode == http.StatusForbidden && g.remaining == 0:
 		wait := time.Until(g.resetAt).Round(time.Minute)
 		hint := "set a GitHub token to raise the limit to 5000/hour: wowbak token set <token>"
