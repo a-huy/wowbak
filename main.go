@@ -68,6 +68,8 @@ type sourcesArgs struct {
 	installPath string
 	flavor      stringList
 	discover    bool
+	prune       bool
+	force       bool
 	all         bool
 }
 
@@ -266,8 +268,13 @@ func run() {
 		fs := flag.NewFlagSet("sources", flag.ExitOnError)
 		installFlag(fs, &a.installPath, &a.flavor)
 		fs.BoolVar(&a.discover, "discover", false, "look up missing sources and save them")
+		fs.BoolVar(&a.prune, "prune", false, "remove settings whose repository no longer exists")
+		fs.BoolVar(&a.force, "force", false, "with --prune, actually remove them")
 		fs.BoolVar(&a.all, "all", false, "list every package, not just a summary")
 		rejectExtra(parseArgs(fs, rest), "sources")
+		if a.prune {
+			os.Exit(cmdPruneSources(a))
+		}
 		os.Exit(cmdSources(a))
 
 	case "outdated":

@@ -581,6 +581,8 @@ func (s *server) handleOutdated(w http.ResponseWriter, r *http.Request) {
 				switch {
 				case res.Untracked:
 					row.State = "untracked"
+				case res.SourceGone:
+					row.State, row.Reason = "gone", res.Reason
 				case res.Reason != "":
 					row.State, row.Reason = "error", res.Reason
 				default:
@@ -603,8 +605,19 @@ func (s *server) handleOutdated(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleSources(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Prune bool `json:"prune"`
+		Force bool `json:"force"`
+	}
+	if r.Body != nil {
+		json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req)
+	}
 	j := s.start("sources", func(*job) {
 		fmt.Println("reading installed addons...")
+		if req.Prune {
+			cmdPruneSources(sourcesArgs{prune: true, force: req.Force})
+			return
+		}
 		cmdSources(sourcesArgs{discover: true})
 	})
 	writeJSON(w, map[string]string{"id": j.ID})

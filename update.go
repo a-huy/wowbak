@@ -3,6 +3,7 @@ package main
 import (
 	"archive/zip"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -15,16 +16,17 @@ import (
 
 // checkResult is what we learned about one package.
 type checkResult struct {
-	Pkg       Package
-	Source    source
-	Latest    string
-	Asset     ghAsset
-	Flavor    string // release flavor the asset was matched on
-	Release   ghRelease
-	Outdated  bool
-	Installed string // release tag we last installed, when it differs from the .toc
-	Reason    string // why it could not be checked, when it could not be
-	Untracked bool   // no source configured
+	Pkg        Package
+	Source     source
+	Latest     string
+	Asset      ghAsset
+	Flavor     string // release flavor the asset was matched on
+	Release    ghRelease
+	Outdated   bool
+	Installed  string // release tag we last installed, when it differs from the .toc
+	Reason     string // why it could not be checked, when it could not be
+	SourceGone bool   // the configured repository no longer exists
+	Untracked  bool   // no source configured
 }
 
 func checkOne(gh *ghClient, p Package, src source, installedTag string) checkResult {
@@ -32,6 +34,14 @@ func checkOne(gh *ghClient, p Package, src source, installedTag string) checkRes
 
 	rels, err := gh.releases(src.Repo)
 	if err != nil {
+		// A repository that has gone is a stale setting, not a transient
+		// failure: it will fail identically on every run until the mapping is
+		// removed, so say so rather than reporting it alongside real errors.
+		if errors.Is(err, errNotFound) {
+			res.SourceGone = true
+			res.Reason = fmt.Sprintf("%s no longer exists", src.Repo)
+			return res
+		}
 		res.Reason = err.Error()
 		return res
 	}
@@ -200,7 +210,7 @@ func cmdOutdated(args updateArgs) int {
 
 	checks, gh := runCheck(cfg, install, flavors, nil, nil)
 
-	total, outdated, untracked, failed := 0, 0, 0, 0
+	total, outdated, untracked, failed, gone := 0, 0, 0, 0, 0
 	for _, fc := range checks {
 		flavor, results := fc.Flavor, fc.Results
 		if len(results) == 0 {
@@ -215,14 +225,12 @@ func cmdOutdated(args updateArgs) int {
 				if args.all {
 					fmt.Printf("  ? %-28s %-14s no source configured\n", r.Pkg.Name, dash(r.Pkg.Version))
 				}
+			case r.SourceGone:
+				gone++
+				fmt.Printf("  x %-28s %-14s %s\n", r.Pkg.Name, dash(r.Pkg.Version), r.Reason)
 			case r.Reason != "":
 				failed++
-				reason := r.Reason
-				if strings.Contains(reason, "not found") {
-					reason = "source no longer exists - remove addon." +
-						strings.ToLower(r.Pkg.Name) + " from wowbak.conf"
-				}
-				fmt.Printf("  ! %-28s %-14s %s\n", r.Pkg.Name, dash(r.Pkg.Version), reason)
+				fmt.Printf("  ! %-28s %-14s %s\n", r.Pkg.Name, dash(r.Pkg.Version), r.Reason)
 			case r.Outdated:
 				outdated++
 				fmt.Printf("  ~ %-28s %-14s -> %-14s %s\n",
@@ -234,11 +242,18 @@ func cmdOutdated(args updateArgs) int {
 		fmt.Println()
 	}
 
-	fmt.Printf("%d outdated, %d checked, %d without a source", outdated, total-untracked-failed, untracked)
+	fmt.Printf("%d outdated, %d checked, %d without a source",
+		outdated, total-untracked-failed-gone, untracked)
 	if failed > 0 {
 		fmt.Printf(", %d could not be checked", failed)
 	}
+	if gone > 0 {
+		fmt.Printf(", %d pointing at a source that is gone", gone)
+	}
 	fmt.Println(".")
+	if gone > 0 {
+		fmt.Println("Run 'wowbak sources --prune' to remove the settings that no longer resolve.")
+	}
 	if !args.all && untracked > 0 {
 		fmt.Println("Run with --all to list them, or 'wowbak sources --discover' to find their repos.")
 	}

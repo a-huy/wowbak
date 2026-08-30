@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"io"
@@ -304,5 +305,62 @@ func cmdSources(args sourcesArgs) int {
 		}
 		fmt.Printf("\n  %d with a source, %d without\n\n", found+len(discovered), missing)
 	}
+	return 0
+}
+
+// cmdPruneSources removes addon settings whose repository no longer resolves.
+// They fail identically on every run, so leaving them in place only hides the
+// addons that could still be updated.
+func cmdPruneSources(args sourcesArgs) int {
+	cfg := loadConfig()
+	if cfg.Path == "" {
+		fatalf("no config file to edit")
+	}
+	install := resolveInstall(args.installPath)
+	flavors := resolveFlavors(install, args.flavor)
+	tok, _ := cfg.githubToken()
+	gh := newGHClient(tok)
+
+	var dead []string
+	seen := map[string]bool{}
+	for _, flavor := range flavors {
+		for _, p := range scanPackages(install, flavor) {
+			key := strings.ToLower(p.Name)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			src, ok := cfg.sourceFor(p.Name)
+			if !ok {
+				continue
+			}
+			fmt.Printf("  checking %-30s\r", p.Name)
+			if _, err := gh.releases(src.Repo); errors.Is(err, errNotFound) {
+				fmt.Printf("  %-30s %s is gone%s\n", p.Name, src.Repo, strings.Repeat(" ", 10))
+				dead = append(dead, key)
+			}
+		}
+	}
+
+	if len(dead) == 0 {
+		fmt.Println("Every configured source still resolves.")
+		return 0
+	}
+	sort.Strings(dead)
+	fmt.Printf("\n%d setting(s) point at a repository that no longer exists:\n", len(dead))
+	for _, d := range dead {
+		fmt.Printf("  addon.%s\n", d)
+	}
+	if !args.force {
+		fmt.Println("\nNothing was changed. Re-run with --force to remove them.")
+		return 0
+	}
+	for _, d := range dead {
+		if err := removeConfKey(cfg.Path, "addon."+d); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: could not clear addon.%s: %v\n", d, err)
+		}
+	}
+	fmt.Printf("\nremoved %d setting(s) from %s\n", len(dead), cfg.Path)
+	fmt.Println("Those addons now show as having no source; update them yourself.")
 	return 0
 }

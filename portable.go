@@ -873,3 +873,25 @@ func cmdDelete(args deleteArgs) int {
 	}
 	return 0
 }
+
+// removeConfKey deletes a setting's line entirely, rather than blanking its
+// value, so a cleared setting does not linger as clutter in the file.
+func removeConfKey(path, key string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	lines := strings.Split(string(data), "\n")
+	out := lines[:0]
+	for _, raw := range lines {
+		line := strings.TrimSpace(strings.TrimSuffix(raw, "\r"))
+		if line != "" && !strings.HasPrefix(line, "#") && !strings.HasPrefix(line, ";") {
+			if k, _, found := strings.Cut(line, "="); found &&
+				strings.EqualFold(strings.TrimSpace(k), key) {
+				continue
+			}
+		}
+		out = append(out, raw)
+	}
+	return os.WriteFile(path, []byte(strings.Join(out, "\n")), 0o644)
+}

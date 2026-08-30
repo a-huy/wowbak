@@ -298,7 +298,9 @@ automated downloads, unlike CurseForge (approval-gated, revocable) and Wago
 (paid tier).
 
 ```
-wowbak sources --discover     # find each addon's repo, saved to wowbak.conf
+wowbak sources --discover        # find each addon's repo, saved to wowbak.conf
+wowbak sources --prune           # list settings whose repo no longer exists
+wowbak sources --prune --force   # remove them
 wowbak outdated               # what is behind
 wowbak update --all --dry-run # what would change
 wowbak update --all           # do it
@@ -316,7 +318,22 @@ addon.dbm-core  = github:DeadlyBossMods/DeadlyBossMods
 All version checks and downloads then go through GitHub's API. Nothing is
 downloaded from Wago: their robots.txt disallows it, and they sell API access to
 fund the site. Addons with no usable GitHub release are reported so you can
-update them yourself, rather than being silently skipped. Set a token to
+update them yourself, rather than being silently skipped.
+
+Repositories disappear - renamed, deleted, made private. An addon pointing at
+one is reported separately from a real failure, since it will fail the same way
+on every run until the setting is removed:
+
+```
+  x Auctionator   335   TheMouseNest/Auctionator no longer exists
+
+  1 pointing at a source that is gone.
+  Run 'wowbak sources --prune' to remove the settings that no longer resolve.
+```
+
+The interface shows these as "source no longer exists" with a button to clear
+them. Removing a setting only makes that addon untracked; nothing is
+uninstalled. Set a token to
 lift the rate limit from 60 to 5000 requests an hour - see **Config** above.
 
 ### Picking the right build

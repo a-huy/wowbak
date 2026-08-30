@@ -143,6 +143,7 @@
   .st-outdated { color: var(--warn); font-weight: 600; }
   .st-current  { color: var(--ok); }
   .st-error    { color: var(--danger); }
+  .st-gone     { color: var(--danger); }
   .st-untracked{ color: var(--muted); }
   .filters { display: flex; gap: 14px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
 
@@ -531,21 +532,24 @@ function renderCheck(res) {
   if (!res || !res.rows) { box.innerHTML = ''; return; }
 
   const showAll = $('showAllAddons') && $('showAllAddons').checked;
-  const rows = res.rows.filter(r => showAll || r.state === 'outdated' || r.state === 'error');
+  const rows = res.rows.filter(r =>
+    showAll || r.state === 'outdated' || r.state === 'error' || r.state === 'gone');
   $('btnUpdateAll').disabled = res.outdated === 0;
 
-  const counts = { outdated: 0, current: 0, untracked: 0, error: 0 };
+  const counts = { outdated: 0, current: 0, untracked: 0, error: 0, gone: 0 };
   res.rows.forEach(r => counts[r.state]++);
 
   const label = {
     outdated: 'update available', current: 'up to date',
     untracked: 'no source', error: 'cannot check',
+    gone: 'source no longer exists',
   };
 
   box.innerHTML = `
     <div class="filters">
       <span><strong>${counts.outdated}</strong> to update</span>
       <span style="color:var(--muted)">${counts.current} current · ${counts.untracked} without a source${counts.error ? ' · ' + counts.error + ' failed' : ''}</span>
+      ${counts.gone ? `<button class="small danger" id="btnPruneSources">Remove ${counts.gone} dead source(s)</button>` : ''}
       <label class="check" style="margin-left:auto">
         <input type="checkbox" id="showAllAddons" ${showAll ? 'checked' : ''}> show everything
       </label>
@@ -569,6 +573,17 @@ function renderCheck(res) {
 
   const chk = $('showAllAddons');
   if (chk) chk.onchange = () => renderCheck(lastCheck);
+  const prune = $('btnPruneSources');
+  if (prune) prune.onclick = async () => {
+    const job = await runJob('Sources that no longer exist', '/api/sources',
+      { prune: true, force: false });
+    if (job.err) return;
+    $('outputActions').innerHTML =
+      `<button class="danger" id="goPrune">Remove them</button>
+       <span class="sub" style="color:var(--muted)">Those addons become untracked; nothing is uninstalled.</span>`;
+    $('goPrune').onclick = () => runJob('Removing dead sources', '/api/sources',
+      { prune: true, force: true }, () => $('btnCheck').click());
+  };
   box.querySelectorAll('[data-upd]').forEach(b => {
     b.onclick = () => runUpdate([b.dataset.upd]);
   });
