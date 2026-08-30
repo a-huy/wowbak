@@ -83,6 +83,24 @@ It listens on loopback only, with a random port and a session token required on
 every request; `Host` and `Origin` are checked so a page you have open in another
 tab cannot drive it.
 
+## macOS: "would like to access files on a removable volume"
+
+macOS asks before a program touches a USB drive, and records the answer against
+the app's code signature. These builds are ad-hoc signed, so their signature
+changes with every build and self-update, and macOS asks again each time.
+
+To grant it: **System Settings -> Privacy & Security -> Files and Folders ->
+WowBackup -> Removable Volumes**. If it is not listed there, add `WowBackup.app`
+under **Full Disk Access** instead, which covers removable volumes and is more
+reliable.
+
+If you use the command line, granting **Full Disk Access to your terminal**
+avoids the prompt entirely: a program started from the terminal inherits the
+terminal's permissions, and Terminal's own signature never changes.
+
+Only a Developer ID signature would make the grant survive updates, and that
+needs a paid Apple developer account.
+
 ## Config
 
 `wowbak.conf` is a plain text file you edit in any editor — no JSON, no escaping

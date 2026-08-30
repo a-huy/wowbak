@@ -69,6 +69,20 @@ cat > "$APP/Info.plist" <<'PLIST'
 </dict>
 </plist>
 PLIST
+# macOS records privacy grants (removable volumes, full disk access) against the
+# code signature. Go's default ad-hoc signature calls everything "a.out", which
+# makes the entry in System Settings unidentifiable. Signing with a stable
+# identifier at least names it properly. The hash still changes on every build,
+# so macOS will ask again after an update unless the app has a Developer ID.
+if command -v codesign >/dev/null 2>&1; then
+  codesign --force --sign - --identifier local.wowbak.app \
+    "$OUT/WowBackup.app" >/dev/null 2>&1 && echo "  signed WowBackup.app (ad-hoc)"
+  codesign --force --sign - --identifier local.wowbak.cli \
+    "$OUT/wowbak-macos" >/dev/null 2>&1
+  codesign --force --sign - --identifier local.wowbak.cli \
+    "$OUT/wowbak-macos-intel" >/dev/null 2>&1
+fi
+
 echo "  WowBackup.app"
 
 # The template is embedded in the binary; ask it for a copy so there is one source.
