@@ -1,0 +1,7 @@
+# A working install lives in dist/: it holds your settings, your GitHub token
+# and your backups. None of that belongs in the repository.
+dist/
+*.token
+wowbak.conf
+
+.DS_Store

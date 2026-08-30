@@ -1,0 +1,651 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WowBackup</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --panel: #ffffff; --ink: #1a1c20; --muted: #6b7280;
+    --line: #e3e5e9; --accent: #2f6feb; --accent-ink: #ffffff;
+    --ok: #1a7f4b; --warn: #b45309; --danger: #b91c1c;
+    --code-bg: #14161a; --code-ink: #dfe3ea;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115; --panel: #171a20; --ink: #e7e9ee; --muted: #9099a8;
+      --line: #262b34; --accent: #4d8bff; --accent-ink: #06101f;
+      --ok: #45c986; --warn: #e0a355; --danger: #f4776b;
+      --code-bg: #0b0d10; --code-ink: #d7dbe2;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 940px; margin: 0 auto; padding: 28px 20px 64px; }
+
+  header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+  h1 { font-size: 20px; margin: 0; letter-spacing: -0.01em; }
+  header .sub { color: var(--muted); font-size: 13px; }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 16px 18px; margin-top: 16px;
+  }
+  .card h2 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--muted); margin: 0 0 12px; font-weight: 600;
+  }
+
+  .rows { display: grid; grid-template-columns: 120px 1fr; gap: 6px 16px; }
+  .rows dt { color: var(--muted); }
+  .rows dd { margin: 0; word-break: break-all; }
+
+  .pill {
+    display: inline-block; padding: 1px 8px; border-radius: 999px;
+    font-size: 12px; font-weight: 600; border: 1px solid transparent;
+  }
+  .pill.ok { color: var(--ok); border-color: currentColor; }
+  .pill.bad { color: var(--danger); border-color: currentColor; }
+  .pill.me { color: var(--accent); border-color: currentColor; }
+
+  .flavors { display: flex; flex-wrap: wrap; gap: 8px; }
+  .flavor {
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px;
+    display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none;
+  }
+  .flavor input { margin: 0; }
+  .flavor .meta { color: var(--muted); font-size: 12px; }
+
+  button {
+    font: inherit; font-weight: 550; border-radius: 8px; padding: 8px 14px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+    cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--muted); }
+  button:disabled { opacity: 0.45; cursor: default; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+  button.danger { color: var(--danger); border-color: currentColor; }
+  button.small { padding: 5px 10px; font-size: 13px; }
+  .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
+
+  label.check { display: flex; align-items: center; gap: 7px; color: var(--muted); cursor: pointer; }
+
+  .machine + .machine { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+  .machine .head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+  .machine .head strong { font-size: 15px; }
+  .machine .path { color: var(--muted); font-size: 12px; word-break: break-all; margin-bottom: 10px; }
+
+  .arc {
+    display: flex; align-items: center; gap: 14px; padding: 10px 0;
+    border-top: 1px dashed var(--line);
+  }
+  .arc:first-of-type { border-top: none; }
+  .arc .info { flex: 1; min-width: 0; }
+  .arc .name { font-weight: 550; }
+  .arc .snap { color: var(--warn); font-weight: 500; }
+  .arc .desc { color: var(--muted); font-size: 12.5px; }
+  .arc .btns { display: flex; gap: 8px; flex-shrink: 0; }
+
+  .empty { color: var(--muted); font-style: italic; }
+
+  pre.log {
+    background: var(--code-bg); color: var(--code-ink); border-radius: 8px;
+    padding: 14px 16px; overflow-x: auto; margin: 0;
+    font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    max-height: 420px; overflow-y: auto; white-space: pre;
+  }
+  pre.log .add { color: #63d68f; }
+  pre.log .del { color: #f4877c; }
+  pre.log .chg { color: #e3b341; }
+  pre.log .err { color: #ff8b7e; font-weight: 600; }
+
+  dialog {
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 0;
+    background: var(--panel); color: var(--ink); max-width: 520px; width: calc(100% - 32px);
+  }
+  dialog::backdrop { background: rgba(0,0,0,0.45); }
+  .modal { padding: 20px 22px; }
+  .modal h3 { margin: 0 0 10px; font-size: 16px; }
+  .modal p { margin: 0 0 12px; }
+  .modal .note { color: var(--muted); font-size: 13px; }
+
+  .tok { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .tok input[type=password], .tok input[type=text] {
+    font: inherit; flex: 1; min-width: 260px; padding: 8px 11px;
+    border: 1px solid var(--line); border-radius: 8px;
+    background: var(--bg); color: var(--ink);
+  }
+  .tok input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .hint { color: var(--muted); font-size: 12.5px; margin: 10px 0 0; }
+  .hint code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: var(--bg); padding: 1px 5px; border-radius: 4px;
+  }
+  a { color: var(--accent); }
+
+  table.addons { width: 100%; border-collapse: collapse; margin-top: 14px; }
+  table.addons th {
+    text-align: left; font-size: 11.5px; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--muted); font-weight: 600;
+    padding: 0 10px 7px 0; border-bottom: 1px solid var(--line);
+  }
+  table.addons td { padding: 8px 10px 8px 0; border-bottom: 1px dashed var(--line); }
+  table.addons tr:last-child td { border-bottom: none; }
+  table.addons td.name { font-weight: 550; }
+  table.addons td.ver { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }
+  table.addons td.act { text-align: right; width: 1%; white-space: nowrap; }
+  .arrow { color: var(--muted); }
+  .st-outdated { color: var(--warn); font-weight: 600; }
+  .st-current  { color: var(--ok); }
+  .st-error    { color: var(--danger); }
+  .st-untracked{ color: var(--muted); }
+  .filters { display: flex; gap: 14px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+
+  .modeopt {
+    display: flex; gap: 10px; align-items: flex-start; cursor: pointer;
+    border: 1px solid var(--line); border-radius: 8px; padding: 11px 13px; margin-bottom: 9px;
+  }
+  .modeopt:hover { border-color: var(--muted); }
+  .modeopt input { margin: 3px 0 0; }
+  .modeopt .note { font-size: 12.5px; }
+
+  .banner {
+    border-radius: 8px; padding: 10px 14px; margin-top: 14px;
+    border: 1px solid currentColor; font-size: 13px;
+  }
+  .banner.bad { color: var(--danger); }
+  .banner.warn { color: var(--warn); }
+  .spin { display: inline-block; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>WowBackup</h1>
+    <span class="sub" id="hdr"></span>
+  </header>
+
+  <div id="alerts"></div>
+
+  <section class="card">
+    <h2>This machine</h2>
+    <dl class="rows" id="thisMachine"></dl>
+    <div id="flavorPick" style="margin-top:14px"></div>
+    <div class="actions">
+      <button class="primary" id="btnBackup">Back up now</button>
+      <label class="check"><input type="checkbox" id="optConfig"> include graphics settings</label>
+      <label class="check"><input type="checkbox" id="optSymlinks"> follow symlinked addons</label>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Backups</h2>
+    <div id="backups"></div>
+  </section>
+
+  <section class="card">
+    <h2>Addon updates</h2>
+    <div class="actions" style="margin-top:0">
+      <button class="primary" id="btnCheck">Check for updates</button>
+      <button id="btnUpdateAll" disabled>Update all</button>
+      <button id="btnDiscover">Find missing sources</button>
+    </div>
+    <div id="updateResults"></div>
+
+    <hr style="border:none;border-top:1px solid var(--line);margin:18px 0">
+
+    <div id="tokenState"></div>
+    <p class="hint">
+      Update checks read public release information from GitHub. Without a token
+      GitHub allows 60 requests an hour, which is not enough for a full check; a
+      token raises it to 5000. Create one at
+      <a href="https://github.com/settings/tokens" target="_blank" rel="noopener">github.com/settings/tokens</a>
+      &mdash; a fine-grained token with <strong>no repository access</strong> is enough,
+      since it only ever reads public data.
+    </p>
+  </section>
+
+  <section class="card" id="outputCard" hidden>
+    <h2 id="outputTitle">Output</h2>
+    <pre class="log" id="log"></pre>
+    <div class="actions" id="outputActions"></div>
+  </section>
+
+  <div class="actions" style="justify-content:flex-end; margin-top:18px">
+    <span class="sub" style="color:var(--muted); margin-right:auto" id="quitNote"></span>
+    <button id="btnQuit" data-always="1">Quit WowBackup</button>
+  </div>
+</div>
+
+<dialog id="mode">
+  <div class="modal">
+    <h3>Restore <span id="mName"></span></h3>
+    <p class="note" id="mFrom"></p>
+    <label class="modeopt">
+      <input type="radio" name="restoreMode" value="merge" checked>
+      <span><strong>Add to this machine</strong><br>
+        <span class="note">Copies the backup in alongside what is already installed.
+        Addons you have that the backup does not are left untouched.</span></span>
+    </label>
+    <label class="modeopt">
+      <input type="radio" name="restoreMode" value="mirror">
+      <span><strong>Make this machine match</strong><br>
+        <span class="note">Replaces addon folders outright and sets aside addons the
+        backup does not contain, so this machine ends up like the one it came from.
+        Your graphics settings and other accounts' settings are still left alone.</span></span>
+    </label>
+    <div class="actions" style="justify-content:flex-end">
+      <button id="mCancel" data-always="1">Cancel</button>
+      <button class="primary" id="mPreview" data-always="1">Preview</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="confirm">
+  <div class="modal">
+    <h3 id="cTitle">Restore</h3>
+    <p id="cBody"></p>
+    <p class="note" id="cNote"></p>
+    <div class="actions" style="justify-content:flex-end">
+      <button id="cCancel">Cancel</button>
+      <button class="danger" id="cGo">Restore</button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+const TOKEN = new URLSearchParams(location.search).get('t') || '';
+const $ = (id) => document.getElementById(id);
+
+async function api(path, body) {
+  const opts = { headers: { 'X-Wowbak-Token': TOKEN } };
+  if (body !== undefined) {
+    opts.method = 'POST';
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  const res = await fetch(path + (path.includes('?') ? '&' : '?') + 't=' + encodeURIComponent(TOKEN), opts);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+let state = null;
+let busy = false;
+
+function esc(s) {
+  return String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+}
+
+function colorize(line) {
+  const t = esc(line);
+  if (/^error:/.test(line) || /^\s*warning:/.test(line)) return `<span class="err">${t}</span>`;
+  if (/^\s*\+/.test(line)) return `<span class="add">${t}</span>`;
+  if (/^\s*-/.test(line)) return `<span class="del">${t}</span>`;
+  if (/^\s*~/.test(line)) return `<span class="chg">${t}</span>`;
+  return t;
+}
+
+function setBusy(v) {
+  busy = v;
+  document.querySelectorAll('button').forEach(b => {
+    if (!b.dataset.always) b.disabled = v;
+  });
+}
+
+async function refresh() {
+  state = await api('/api/state');
+  $('hdr').textContent = `${state.machine} · ${state.os}`;
+
+  const install = state.installOk
+    ? esc(state.installPath)
+    : `<span class="pill bad">not found</span>`;
+  $('thisMachine').innerHTML = `
+    <dt>Machine</dt><dd>${esc(state.machine)} <span class="pill me">this one</span></dd>
+    <dt>WoW folder</dt><dd>${install}</dd>
+    <dt>Settings</dt><dd>${esc(state.configPath)}</dd>
+    <dt>Backups</dt><dd>${esc(state.backupRoot)}</dd>`;
+
+  const alerts = [];
+  if (!state.installOk) {
+    alerts.push(`<div class="banner bad"><strong>No World of Warcraft folder found.</strong><br>
+      Open <code>${esc(state.configPath)}</code> in a text editor and set
+      <code>install_path.${esc(state.machine)}</code> to the folder that contains
+      <code>_retail_</code>, then reload this page.</div>`);
+  }
+  const unwritable = (state.flavors || []).filter(f => !f.writable).map(f => f.name);
+  if (unwritable.length) {
+    alerts.push(`<div class="banner warn"><strong>Read-only:</strong> ${esc(unwritable.join(', '))}.
+      Restoring into ${unwritable.length > 1 ? 'these' : 'this'} will fail. Backing up still works.</div>`);
+  }
+  $('alerts').innerHTML = alerts.join('');
+
+  // Remember which game versions were ticked; refresh() runs after every action
+  // and must not quietly reset a deliberate choice.
+  const previously = new Set([...document.querySelectorAll('.fl')].map(c => c.value));
+  const hadPick = previously.size > 0;
+  const wasChecked = new Set(
+    [...document.querySelectorAll('.fl')].filter(c => c.checked).map(c => c.value));
+
+  const fl = state.flavors || [];
+  $('flavorPick').innerHTML = fl.length
+    ? `<div class="flavors">` + fl.map(f => `
+        <label class="flavor">
+          <input type="checkbox" class="fl" value="${esc(f.name)}"
+            ${!hadPick || wasChecked.has(f.name) ? 'checked' : ''}>
+          <span>
+            <strong>${esc(f.name)}</strong>
+            <span class="meta">${f.addons} addons${f.hasWtf ? ' · settings' : ''}${f.writable ? '' : ' · read-only'}</span>
+          </span>
+        </label>`).join('') + `</div>`
+    : `<p class="empty">No game versions detected.</p>`;
+  $('btnBackup').disabled = !state.installOk || !fl.length;
+
+  const machines = (state.machines || []).slice().sort((a, b) =>
+    (b.isCurrent - a.isCurrent) || a.name.localeCompare(b.name));
+  const total = machines.reduce((n, m) => n + (m.archives || []).length, 0);
+
+  $('backups').innerHTML = total === 0
+    ? `<p class="empty">No backups yet. Use “Back up now” above.</p>`
+    : machines.filter(m => (m.archives || []).length || m.isCurrent).map(m => `
+      <div class="machine">
+        <div class="head">
+          <strong>${esc(m.name)}</strong>
+          ${m.os ? `<span class="sub" style="color:var(--muted)">${esc(m.os)}</span>` : ''}
+          ${m.isCurrent ? '<span class="pill me">this machine</span>' : ''}
+          ${(m.archives || []).filter(a => a.snapshot).length
+            ? `<button class="small" data-prune="${esc(m.name)}" style="margin-left:auto">
+                 Delete ${(m.archives || []).filter(a => a.snapshot).length} undo point(s)</button>`
+            : ''}
+        </div>
+        <div class="path">${esc(m.installPath || 'no install path recorded')}</div>
+        ${(m.archives || []).length
+          ? m.archives.map(a => `
+            <div class="arc">
+              <div class="info">
+                <div class="name">${esc(a.name)} ${a.snapshot ? '<span class="snap">· undo point</span>' : ''}</div>
+                <div class="desc">${esc(a.modified)} · ${esc(a.size)} · ${esc(a.summary)}</div>
+              </div>
+              <div class="btns">
+                <button class="small" data-act="diff" data-p="${esc(a.path)}">Compare</button>
+                <button class="small" data-act="restore" data-p="${esc(a.path)}" data-n="${esc(a.name)}" data-m="${esc(m.name)}">Restore</button>
+              </div>
+            </div>`).join('')
+          : `<p class="empty">No backups from this machine yet.</p>`}
+      </div>`).join('');
+}
+
+function chosenFlavors() {
+  return [...document.querySelectorAll('.fl')].filter(c => c.checked).map(c => c.value);
+}
+
+async function runJob(title, path, body, onDone) {
+  $('outputCard').hidden = false;
+  $('outputTitle').textContent = title;
+  $('log').innerHTML = '<span class="spin">◐</span> starting…';
+  $('outputActions').innerHTML = '';
+  $('outputCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  setBusy(true);
+
+  const log = $('log');
+  try {
+    const { id } = await api(path, body);
+    while (true) {
+      const j = await api('/api/job?id=' + encodeURIComponent(id));
+      log.innerHTML = (j.lines || []).map(colorize).join('\n');
+      log.scrollTop = log.scrollHeight;
+      if (j.done) {
+        setBusy(false);
+        if (onDone) onDone(j);
+        return j;
+      }
+      await new Promise(r => setTimeout(r, 350));
+    }
+  } catch (e) {
+    // Without this the page would sit on "starting" with no explanation.
+    setBusy(false);
+    log.innerHTML = `<span class="err">${esc(String(e && e.message || e))}</span>`;
+    return { done: true, err: String(e), lines: [] };
+  }
+}
+
+$('btnBackup').onclick = async () => {
+  const flavors = chosenFlavors();
+  if (!flavors.length) return;
+  await runJob('Backing up', '/api/backup', {
+    flavors,
+    includeConfig: $('optConfig').checked,
+    followSymlinks: $('optSymlinks').checked,
+  }, () => refresh());
+};
+
+$('backups').onclick = async (e) => {
+  const btn = e.target.closest('button');
+  if (!btn || busy) return;
+
+  if (btn.dataset.prune) {
+    const machine = btn.dataset.prune;
+    const job = await runJob(`Undo points for ${machine}`, '/api/prune',
+      { machine, force: false });
+    if (job.err) return;
+    $('outputActions').innerHTML =
+      `<button class="danger" id="goPrune">Delete these</button>
+       <span class="sub" style="color:var(--muted)">Ordinary backups are not touched.</span>`;
+    $('goPrune').onclick = async () => {
+      await runJob(`Deleting undo points for ${machine}`, '/api/prune',
+        { machine, force: true }, () => refresh());
+    };
+    return;
+  }
+
+  const archive = btn.dataset.p;
+  if (btn.dataset.act === 'diff') {
+    await runJob('Comparing with this machine', '/api/diff', { archive, files: true });
+    return;
+  }
+  // Restoring another machine's backup can mean two different things, so ask
+  // which before previewing.
+  askMode(archive, btn.dataset.n, btn.dataset.m || '');
+};
+
+function askMode(archive, name, machine) {
+  const dlg = $('mode');
+  $('mName').textContent = name;
+  $('mFrom').textContent = machine ? `Taken on ${machine}.` : '';
+  dlg.showModal();
+  $('mCancel').onclick = () => dlg.close();
+  $('mPreview').onclick = async () => {
+    dlg.close();
+    const mirror = document.querySelector('input[name=restoreMode]:checked').value === 'mirror';
+    const job = await runJob(
+      mirror ? 'Preview: make this machine match — nothing changed yet'
+             : 'Preview: add to this machine — nothing changed yet',
+      '/api/restore', { archive, dryRun: true, mirror });
+    if (job.err) return;
+    $('outputActions').innerHTML =
+      `<button class="danger" id="goRestore">Apply this restore</button>
+       <span class="sub" style="color:var(--muted)">Whatever is replaced is saved to an undo point first.</span>`;
+    $('goRestore').onclick = () => askConfirm(archive, name, mirror);
+  };
+}
+
+function askConfirm(archive, name, mirror) {
+  $('cBody').innerHTML = mirror
+    ? `Make this machine match <strong>${esc(name)}</strong>? Addon folders are
+       replaced, and addons not in the backup are set aside.`
+    : `Copy <strong>${esc(name)}</strong> into this machine's World of Warcraft
+       folder, overwriting files that already exist?`;
+  $('cNote').textContent = 'Whatever gets replaced is first saved as an undo point in ' +
+    'this machine’s backup folder, so you can put it back.';
+  const dlg = $('confirm');
+  dlg.showModal();
+  $('cCancel').onclick = () => dlg.close();
+  $('cGo').onclick = async () => {
+    dlg.close();
+    await runJob('Restoring', '/api/restore', { archive, dryRun: false, mirror }, () => refresh());
+  };
+}
+
+$('cCancel').dataset.always = '1';
+$('cGo').dataset.always = '1';
+
+let lastCheck = null;
+
+function renderCheck(res) {
+  lastCheck = res;
+  const box = $('updateResults');
+  if (!res || !res.rows) { box.innerHTML = ''; return; }
+
+  const showAll = $('showAllAddons') && $('showAllAddons').checked;
+  const rows = res.rows.filter(r => showAll || r.state === 'outdated' || r.state === 'error');
+  $('btnUpdateAll').disabled = res.outdated === 0;
+
+  const counts = { outdated: 0, current: 0, untracked: 0, error: 0 };
+  res.rows.forEach(r => counts[r.state]++);
+
+  const label = {
+    outdated: 'update available', current: 'up to date',
+    untracked: 'no source', error: 'cannot check',
+  };
+
+  box.innerHTML = `
+    <div class="filters">
+      <span><strong>${counts.outdated}</strong> to update</span>
+      <span style="color:var(--muted)">${counts.current} current · ${counts.untracked} without a source${counts.error ? ' · ' + counts.error + ' failed' : ''}</span>
+      <label class="check" style="margin-left:auto">
+        <input type="checkbox" id="showAllAddons" ${showAll ? 'checked' : ''}> show everything
+      </label>
+    </div>
+    ${rows.length === 0 ? '<p class="empty" style="margin-top:12px">Everything is up to date.</p>' : `
+    <table class="addons">
+      <thead><tr>
+        <th>Addon</th><th>Installed</th><th>Latest</th><th>Status</th><th></th>
+      </tr></thead>
+      <tbody>${rows.map(r => `
+        <tr>
+          <td class="name">${esc(r.name)}${r.folders > 1 ? ` <span class="arrow">(${r.folders} folders)</span>` : ''}</td>
+          <td class="ver">${esc(r.installed || '-')}</td>
+          <td class="ver">${r.state === 'outdated' ? esc(r.latest) : ''}</td>
+          <td class="st-${r.state}">${label[r.state]}${r.reason ? ` <span class="arrow">— ${esc(r.reason)}</span>` : ''}</td>
+          <td class="act">${r.state === 'outdated'
+            ? `<button class="small" data-upd="${esc(r.name)}">Update</button>` : ''}</td>
+        </tr>`).join('')}</tbody>
+    </table>`}
+    ${res.rate ? `<p class="hint">${esc(res.rate)}</p>` : ''}`;
+
+  const chk = $('showAllAddons');
+  if (chk) chk.onchange = () => renderCheck(lastCheck);
+  box.querySelectorAll('[data-upd]').forEach(b => {
+    b.onclick = () => runUpdate([b.dataset.upd]);
+  });
+}
+
+async function runUpdate(names) {
+  const all = !names;
+  await runJob(all ? 'Updating all addons' : 'Updating ' + names.join(', '),
+    '/api/update', all ? { all: true } : { names }, async () => {
+      // An update writes an undo point, so the backup list has changed too.
+      await refresh();
+      const res = await api('/api/outdated');
+      // re-check quietly so the list reflects what just happened
+      pollInto(res.id, renderCheck);
+    });
+}
+
+async function pollInto(id, done) {
+  while (true) {
+    const j = await api('/api/job?id=' + encodeURIComponent(id));
+    if (j.done) { if (j.result) done(j.result); return; }
+    await new Promise(r => setTimeout(r, 400));
+  }
+}
+
+$('btnCheck').onclick = async () => {
+  const j = await runJob('Checking for updates', '/api/outdated', {});
+  if (j.result) renderCheck(j.result);
+};
+$('btnUpdateAll').onclick = () => runUpdate(null);
+$('btnDiscover').onclick = async () => {
+  await runJob('Looking up addon sources', '/api/sources', {});
+};
+
+async function refreshToken() {
+  const t = await api('/api/token');
+  const box = $('tokenState');
+
+  if (t.fromEnv) {
+    box.innerHTML = `
+      <dl class="rows">
+        <dt>GitHub token</dt>
+        <dd><span class="mono">${esc(t.masked)}</span> <span class="pill ok">active</span></dd>
+        <dt>Source</dt><dd>${esc(t.source)}</dd>
+      </dl>
+      <p class="hint">This comes from your environment, which takes precedence, so
+        saving one here would have no effect until you unset it.</p>`;
+    return;
+  }
+
+  const status = t.set
+    ? `<dl class="rows">
+         <dt>GitHub token</dt>
+         <dd><span class="mono">${esc(t.masked)}</span> <span class="pill ok">saved</span></dd>
+         <dt>Stored in</dt><dd>${esc(t.path)}</dd>
+       </dl>`
+    : `<dl class="rows">
+         <dt>GitHub token</dt>
+         <dd>not set <span class="pill bad">limited to 60 checks/hour</span></dd>
+       </dl>`;
+
+  box.innerHTML = status + `
+    <div class="tok" style="margin-top:12px">
+      <input type="password" id="tokIn" placeholder="${t.set ? 'Replace with a new token' : 'Paste your GitHub token'}"
+             autocomplete="off" spellcheck="false">
+      <button class="primary" id="tokSave" data-always="1">Save</button>
+      ${t.onDevice ? '<button id="tokClear" data-always="1">Remove</button>' : ''}
+    </div>
+    <p class="hint" id="tokMsg"></p>`;
+
+  $('tokSave').onclick = async () => {
+    const v = $('tokIn').value.trim();
+    if (!v) { $('tokMsg').textContent = 'Paste a token first.'; return; }
+    $('tokMsg').textContent = 'Saving…';
+    try {
+      await api('/api/token', { token: v });
+      $('tokIn').value = '';
+      await refreshToken();
+      $('tokMsg').textContent = 'Saved, readable only by you.';
+    } catch (e) {
+      $('tokMsg').textContent = 'Could not save: ' + e.message;
+    }
+  };
+  const clr = $('tokClear');
+  if (clr) clr.onclick = async () => {
+    await api('/api/token', { clear: true });
+    await refreshToken();
+    $('tokMsg').textContent = 'Token removed.';
+  };
+}
+
+$('quitNote').textContent = 'WowBackup keeps running in the background until you quit.';
+$('btnQuit').onclick = async () => {
+  try { await api('/api/quit', {}); } catch (e) { /* the server goes away mid-reply */ }
+  document.body.innerHTML =
+    '<div class="wrap"><header><h1>WowBackup</h1></header>' +
+    '<section class="card"><p>Stopped. You can close this tab.</p></section></div>';
+};
+
+$('btnUpdateAll').disabled = true;
+refreshToken().catch(() => {});
+
+refresh().catch(e => {
+  $('alerts').innerHTML = `<div class="banner bad">Could not talk to wowbak: ${esc(e.message)}.
+    The window that started it may have been closed.</div>`;
+});
+</script>
+</body>
+</html>
